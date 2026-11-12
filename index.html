@@ -2100,6 +2100,11 @@ function openWicketModal(preselect) {
   const bodyHTML =
     (freeHit ? '<p class="pill orange" style="margin-bottom:10px">FREE HIT — only run out is possible</p>' : '') +
 
+    '<div class="form-row"><label for="selWkDelType">Delivery Type</label>' +
+      '<select id="selWkDelType"><option value="legal">Legal Delivery</option>' +
+      (rules.wideEnabled ? '<option value="wide">Wide</option>' : '') +
+      '<option value="noball">No Ball</option></select></div>' +
+
     '<div class="form-row"><label for="selWkType">Dismissal type</label>' +
       '<select id="selWkType">' + allowedTypes.map(d => '<option value="' + d.v + '">' + d.label + '</option>').join('') + '</select></div>' +
 
@@ -2179,11 +2184,29 @@ function openWicketModal(preselect) {
       return;
     }
 
+    const delType = $('#selWkDelType') ? $('#selWkDelType').value : 'legal';
+    let eType = null;
+    let eRuns = 0;
+    let bRuns = runsCompleted;
+    let isLegal = true;
+
+    if (delType === 'wide') {
+      eType = 'wide';
+      eRuns = clamp(num(rules.wideRuns), 0, 10) + runsCompleted;
+      bRuns = 0;
+      isLegal = false;
+    } else if (delType === 'noball') {
+      eType = 'noball';
+      eRuns = rules.noBallEnabled ? clamp(num(rules.noBallRuns), 0, 10) : 0;
+      bRuns = runsCompleted; 
+      isLegal = false;
+    }
+
     recordDelivery({
-      batRuns: runsCompleted,
-      extraType: null, extraRuns: 0, overthrowRuns: 0,
+      batRuns: bRuns,
+      extraType: eType, extraRuns: eRuns, overthrowRuns: 0,
       ranRuns: runsCompleted,
-      legal: true,
+      legal: isLegal,
       wicket: {
         type: type, batterId: batterId, fielderId: fielderId,
         newBatterId: willBeAllOut ? null : newBatterId,
@@ -2379,6 +2402,7 @@ function undoLastDelivery() {
     recompute();
     saveMatch();
     renderLive();
+    showScreen('live');
     toast('Last delivery undone');
   };
   if (affectsOver) confirmModal('Undo completed over?', 'This delivery completed an over. Undoing it will restore the previous bowler and strike.', doIt, 'Undo');
@@ -2507,7 +2531,10 @@ function renderInningsBreak() {
     '<button class="btn btn-primary btn-block" id="btnStart2nd" style="margin-top:10px">▶ Start Second Innings</button>';
 
   $('#liveControls').innerHTML =
-    '<div class="row"><button class="btn btn-sm btn-ghost grow" id="btnBreakHome">🏠 Home</button></div>';
+    '<div class="row">' +
+      '<button class="btn btn-sm btn-ghost grow" id="btnBreakUndo">↶ Undo Last Ball</button>' +
+      '<button class="btn btn-sm btn-ghost grow" id="btnBreakHome">🏠 Home</button>' +
+    '</div>';
 
   const b1 = document.getElementById('btnBreakScorecard');
   if (b1) b1.addEventListener('click', () => { renderScorecard(0); showScreen('scorecard'); });
@@ -2517,6 +2544,8 @@ function renderInningsBreak() {
   if (b3) b3.addEventListener('click', startSecondInnings);
   const b4 = document.getElementById('btnBreakHome');
   if (b4) b4.addEventListener('click', () => { renderHome(); showScreen('home'); });
+  const b5 = document.getElementById('btnBreakUndo');
+  if (b5) b5.addEventListener('click', undoLastDelivery);
 }
 
 /* ============================================================================
@@ -2734,6 +2763,7 @@ function renderSummary() {
       '<button class="btn btn-ghost grow" id="btnViewSc2">Innings 2</button>' +
     '</div>' +
     '<div class="row" style="margin-top:8px">' +
+      '<button class="btn btn-ghost grow" id="btnUndoMatchEnd">↶ Undo Last Ball</button>' +
       '<button class="btn btn-ghost grow" id="btnSuperOver">Super Over</button>' +
       '<button class="btn btn-ghost grow" id="btnBackHomeFromSummary">Home</button>' +
     '</div>' +
@@ -2747,6 +2777,7 @@ function renderSummary() {
   bind('btnViewSc1', () => { renderScorecard(0); showScreen('scorecard'); });
   bind('btnViewSc2', () => { renderScorecard(1); showScreen('scorecard'); });
   bind('btnBackHomeFromSummary', () => { renderHome(); showScreen('home'); });
+  bind('btnUndoMatchEnd', undoLastDelivery);
   bind('btnDeleteThisMatch', () => {
     confirmModal('Delete match?', 'This permanently deletes the match record.', () => {
       delete store[m.id]; saveStore();
@@ -2900,367 +2931,4 @@ function generatePDF(match, mode) {
     const E2 = i2 ? computeInnings(i2, match) : null;
 
     /* ---------- Match info ---------- */
-    line('Date: ' + fmtDate(match.date) + (match.venue ? '    Venue: ' + match.venue : '') + '    Overs: ' + match.overs, 9, 'normal');
-    if (match.toss && match.toss.winnerTeamId) {
-      line('Toss: ' + teamName(match, match.toss.winnerTeamId) + ' won and chose to ' + (match.toss.decision === 'bat' ? 'bat' : 'bowl'), 9, 'normal');
-    }
-    line(teamName(match, 'A') + '  vs  ' + teamName(match, 'B'), 10, 'bold');
-
-    if (mode === 'final' && match.result) {
-      gap(4);
-      doc.setFontSize(13); doc.setFont('helvetica', 'bold'); doc.setTextColor(20, 90, 40);
-      line('RESULT: ' + match.result.text, 13, 'bold', [20, 90, 40]);
-      doc.setTextColor(20, 20, 20);
-    }
-
-    /* ---------- Innings ---------- */
-    const inningsToPrint = (mode === 'final') ? [0, 1] : [match.currentInnings === 0 ? 0 : 1];
-    if (mode === 'innings') {
-      // Print all completed innings + current
-      const list = [];
-      for (let i = 0; i < match.innings.length; i++) list.push(i);
-      inningsToPrint.length = 0;
-      list.forEach(i => inningsToPrint.push(i));
-    }
-
-    inningsToPrint.forEach(idx => {
-      const inn = match.innings[idx];
-      if (!inn) return;
-      const E = computeInnings(inn, match);
-
-      sectionTitle('INNINGS ' + (idx + 1) + ' — ' + teamName(match, inn.battingTeamId) + '  ' + E.runs + '/' + E.wickets + ' (' + oversStr(E.legalBalls) + ' ov)');
-
-      const batRows = E.order.map(pid => {
-        const b = E.batters[pid];
-        let how = b.howOut;
-        if (!b.out && !b.isRetired) how = (pid === E.strikerId && inn.status === 'live') ? 'not out *' : 'not out';
-        if (b.isRetired && !b.out) how = 'retired hurt';
-        return [b.name, how || 'not out', String(b.runs), String(b.balls), String(b.fours), String(b.sixes), f2(sr(b.runs, b.balls))];
-      });
-
-      table(
-        [
-          { label: 'Batter', w: 30 },
-          { label: 'How Out', w: 30 },
-          { label: 'R', w: 8 },
-          { label: 'B', w: 8 },
-          { label: '4s', w: 8 },
-          { label: '6s', w: 8 },
-          { label: 'SR', w: 12 }
-        ],
-        batRows.length ? batRows : [['—', '—', '0', '0', '0', '0', '0.00']]
-      );
-
-      line('Extras: ' + E.extras.total + '  (wd ' + E.extras.wide + ', nb ' + E.extras.noball + ', b ' + E.extras.bye + ', lb ' + E.extras.legbye + ', ot ' + E.extras.overthrow + ')', 9);
-      line('Total: ' + E.runs + '/' + E.wickets + ' in ' + oversStr(E.legalBalls) + ' overs   |   Run Rate: ' + f2(E.legalBalls > 0 ? E.runs / (E.legalBalls / 6) : 0), 9, 'bold');
-
-      gap(4);
-
-      const bowlRows = E.bowlerOrder.map(pid => {
-        const b = E.bowlers[pid];
-        return [b.name, oversStr(b.balls), String(b.maidens), String(b.runs), String(b.wickets), f2(econ(b.runs, b.balls))];
-      });
-      table(
-        [
-          { label: 'Bowler', w: 34 },
-          { label: 'O', w: 10 },
-          { label: 'M', w: 10 },
-          { label: 'R', w: 10 },
-          { label: 'W', w: 10 },
-          { label: 'Econ', w: 14 }
-        ],
-        bowlRows.length ? bowlRows : [['—', '0', '0', '0', '0', '0.00']]
-      );
-
-      if (E.fow.length) {
-        line('Fall of Wickets: ' + E.fow.map(f => f.batter + ' ' + f.runs + '-' + f.wickets + ' (' + f.over + ')').join(', '), 8.5);
-      }
-      if (E.overs.length) {
-        line('Over by Over: ' + E.overs.map(o => o.num + ': ' + (o.wickets ? o.runs + '/' + o.wickets : o.runs)).join('  '), 8.5);
-      }
-      gap(8);
-    });
-
-    /* ---------- Awards ---------- */
-    if (mode === 'final') {
-      sectionTitle('AWARDS');
-      const allBat = [], allBowl = [];
-      [0, 1].forEach(idx => {
-        const inn = match.innings[idx];
-        if (!inn) return;
-        const E = computeInnings(inn, match);
-        E.order.forEach(pid => allBat.push(E.batters[pid]));
-        E.bowlerOrder.forEach(pid => allBowl.push(E.bowlers[pid]));
-      });
-      const topRun = allBat.slice().sort((a, b) => b.runs - a.runs)[0];
-      const topWkt = allBowl.slice().sort((a, b) => b.wickets - a.wickets || a.runs - b.runs)[0];
-      const pomId = match.playerOfMatch || match.suggestedPOM;
-      const pom = pomId ? playerById(match, pomId) : null;
-      if (topRun) line('Most Runs: ' + topRun.name + ' — ' + topRun.runs + ' runs', 9);
-      if (topWkt) line('Most Wickets: ' + topWkt.name + ' — ' + topWkt.wickets + ' wickets', 9);
-      if (pom) line('Player of the Match: ' + pom.name, 10, 'bold');
-    }
-
-    gap(10);
-    line('Generated by Gully Cricket Scorekeeper · ' + new Date().toLocaleString(), 8, 'normal', [110, 110, 110]);
-
-    const safe = (s) => String(s || 'match').replace(/[^a-z0-9]+/gi, '_').slice(0, 40);
-    const fname = 'GCS_' + safe(match.name || (teamName(match, 'A') + '_vs_' + teamName(match, 'B'))) + '_' + (mode === 'final' ? 'FINAL' : 'INNINGS') + '.pdf';
-    doc.save(fname);
-  } catch (err) {
-    console.error('PDF generation failed:', err);
-    fallbackPrintPDF(match, mode);
-  }
-}
-
-function fallbackPrintPDF(match, mode) {
-  const i1 = match.innings[0], i2 = match.innings[1];
-  const E1 = i1 ? computeInnings(i1, match) : null;
-  const E2 = i2 ? computeInnings(i2, match) : null;
-
-  function battingTable(inn, E) {
-    if (!inn || !E) return '';
-    return '<h2>Innings ' + (inn.index + 1) + ' — ' + esc(teamName(match, inn.battingTeamId)) + ' ' +
-      E.runs + '/' + E.wickets + ' (' + oversStr(E.legalBalls) + ' ov)</h2>' +
-      '<table><thead><tr><th>Batter</th><th>How Out</th><th class="num">R</th><th class="num">B</th><th class="num">4s</th><th class="num">6s</th><th class="num">SR</th></tr></thead><tbody>' +
-      E.order.map(pid => {
-        const b = E.batters[pid];
-        return '<tr><td>' + esc(b.name) + '</td><td>' + esc(b.howOut || 'not out') + '</td><td class="num">' + b.runs +
-          '</td><td class="num">' + b.balls + '</td><td class="num">' + b.fours + '</td><td class="num">' + b.sixes +
-          '</td><td class="num">' + f2(sr(b.runs, b.balls)) + '</td></tr>';
-      }).join('') +
-      '</tbody></table>' +
-      '<p>Extras: ' + E.extras.total + ' (wd ' + E.extras.wide + ', nb ' + E.extras.noball + ', b ' + E.extras.bye + ', lb ' + E.extras.legbye + ', ot ' + E.extras.overthrow + ')</p>' +
-      '<table><thead><tr><th>Bowler</th><th class="num">O</th><th class="num">M</th><th class="num">R</th><th class="num">W</th><th class="num">Econ</th></tr></thead><tbody>' +
-      E.bowlerOrder.map(pid => {
-        const b = E.bowlers[pid];
-        return '<tr><td>' + esc(b.name) + '</td><td class="num">' + oversStr(b.balls) + '</td><td class="num">' + b.maidens +
-          '</td><td class="num">' + b.runs + '</td><td class="num">' + b.wickets + '</td><td class="num">' + f2(econ(b.runs, b.balls)) + '</td></tr>';
-      }).join('') +
-      '</tbody></table>';
-  }
-
-  const html = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Gully Cricket Scorecard</title>' +
-    '<style>body{font-family:Arial,sans-serif;padding:20px;color:#111}' +
-    'h1{font-size:20px}h2{font-size:15px;margin-top:20px;border-bottom:1px solid #999;padding-bottom:4px}' +
-    'table{width:100%;border-collapse:collapse;font-size:12px;margin:8px 0}' +
-    'th,td{border:1px solid #bbb;padding:4px 6px;text-align:left}th{background:#eee}.num{text-align:right}' +
-    '.res{font-size:16px;font-weight:bold;color:#0a6b2e;margin:10px 0}</style></head><body>' +
-    '<h1>GULLY CRICKET SCOREKEEPER</h1>' +
-    '<p><b>' + esc(match.name || (teamName(match, 'A') + ' vs ' + teamName(match, 'B'))) + '</b><br>' +
-    esc(fmtDate(match.date)) + (match.venue ? ' · ' + esc(match.venue) : '') + ' · ' + match.overs + ' overs</p>' +
-    (match.result ? '<div class="res">' + esc(match.result.text) + '</div>' : '') +
-    battingTable(i1, E1) + battingTable(i2, E2) +
-    '<p style="color:#777;font-size:11px;margin-top:24px">Generated ' + new Date().toLocaleString() + '</p>' +
-    '</body></html>';
-
-  const w = window.open('', '_blank');
-  if (!w) { toast('Allow pop-ups to download the scorecard.'); return; }
-  w.document.open();
-  w.document.write(html);
-  w.document.close();
-  setTimeout(() => { try { w.focus(); w.print(); } catch (e) {} }, 500);
-}
-
-/* ============================================================================
-   EVENT BINDING & INIT
-   ============================================================================ */
-function init() {
-  store = loadStore();
-  try { activeId = localStorage.getItem(LS_ACTIVE); } catch (e) { activeId = null; }
-
-  /* ---- HOME ---- */
-  $('#btnNewMatch').addEventListener('click', () => {
-    currentMatch = newMatch();
-    store[currentMatch.id] = currentMatch;
-    saveStore();
-    setActive(currentMatch.id);
-    createStep = 0;
-    renderCreate();
-    showScreen('create');
-  });
-  renderHome();
-
-  /* ---- CREATE: cancel ---- */
-  $('#btnCancelCreate').addEventListener('click', () => {
-    if (currentMatch && currentMatch.status === 'setup') {
-      confirmModal('Discard new match?', 'The match has not started yet. Discard the setup?', () => {
-        delete store[currentMatch.id];
-        saveStore();
-        if (activeId === currentMatch.id) setActive(null);
-        currentMatch = null;
-        renderHome();
-        showScreen('home');
-      });
-    } else {
-      renderHome();
-      showScreen('home');
-    }
-  });
-
-  /* ---- CREATE: details ---- */
-  const bindInput = (sel, prop, transform) => {
-    const el = $(sel);
-    if (!el) return;
-    el.addEventListener('input', () => {
-      const v = transform ? transform(el.value) : el.value;
-      currentMatch[prop] = v;
-      saveMatch();
-    });
-  };
-  bindInput('#inMatchName', 'name');
-  bindInput('#inMatchDate', 'date');
-  bindInput('#inMatchVenue', 'venue');
-  bindInput('#inMatchNotes', 'notes');
-  $('#inMatchOvers').addEventListener('change', () => {
-    const v = clamp(num($('#inMatchOvers').value), 1, 99);
-    currentMatch.overs = v;
-    $('#inMatchOvers').value = v;
-    renderOversChips();
-    saveMatch();
-  });
-
-  /* ---- CREATE: teams ---- */
-  $('#inTeamAName').addEventListener('input', () => { currentMatch.teams.A.name = $('#inTeamAName').value; saveMatch(); renderTossUI(); });
-  $('#inTeamBName').addEventListener('input', () => { currentMatch.teams.B.name = $('#inTeamBName').value; saveMatch(); renderTossUI(); });
-  $('#btnAddPlayerA').addEventListener('click', () => addPlayer('A', $('#inPlayerA')));
-  $('#btnAddPlayerB').addEventListener('click', () => addPlayer('B', $('#inPlayerB')));
-  $('#inPlayerA').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); addPlayer('A', $('#inPlayerA')); } });
-  $('#inPlayerB').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); addPlayer('B', $('#inPlayerB')); } });
-
-  /* ---- CREATE: step navigation ---- */
-  $$('[data-next]').forEach(b => b.addEventListener('click', () => {
-    const next = num(b.getAttribute('data-next'));
-    if (next === 2 || next === 3 || next === 4) {
-      // validate teams before advancing
-      const m = currentMatch;
-      if (m.teams.A.players.length < 2 || m.teams.B.players.length < 2) {
-        toast('Each team needs at least 2 players');
-        return;
-      }
-      if (!m.teams.A.name.trim()) m.teams.A.name = 'Team A';
-      if (!m.teams.B.name.trim()) m.teams.B.name = 'Team B';
-      saveMatch();
-    }
-    goCreateStep(next);
-  }));
-
-  /* ---- CREATE: toss ---- */
-  $('#callHeads').addEventListener('click', () => { tossCall = 'heads'; $('#callHeads').classList.add('active'); $('#callTails').classList.remove('active'); });
-  $('#callTails').addEventListener('click', () => { tossCall = 'tails'; $('#callTails').classList.add('active'); $('#callHeads').classList.remove('active'); });
-
-  $('#btnFlipCoin').addEventListener('click', () => {
-    const coin = $('#coin');
-    if (coin.classList.contains('flipping')) return;
-    coin.classList.add('flipping');
-    $('#tossResultText').textContent = 'Flipping…';
-    setTimeout(() => {
-      const result = Math.random() < 0.5 ? 'heads' : 'tails';
-      coin.classList.remove('flipping');
-      coin.textContent = result === 'heads' ? 'H' : 'T';
-      const winner = result === tossCall ? 'You called it!' : 'Not your call.';
-      const m = currentMatch;
-      // 50/50 toss winner between the two teams
-      const winTeam = Math.random() < 0.5 ? 'A' : 'B';
-      $('#tossResultText').innerHTML = 'Result: <b>' + result.toUpperCase() + '</b> — ' + winner +
-        '<br>' + esc(teamName(m, winTeam)) + ' wins the toss.';
-      $('#selTossWinner').value = winTeam;
-      const dec = $$('[data-decision]').find(b => b.classList.contains('active'));
-      setToss(winTeam, dec ? dec.getAttribute('data-decision') : 'bat');
-    }, 1250);
-  });
-
-  $('#selTossWinner').addEventListener('change', () => {
-    const w = $('#selTossWinner').value;
-    if (!w) { currentMatch.toss = null; saveMatch(); renderTossSummary(); return; }
-    const dec = $$('[data-decision]').find(b => b.classList.contains('active'));
-    setToss(w, dec ? dec.getAttribute('data-decision') : 'bat');
-  });
-
-  $$('[data-decision]').forEach(b => b.addEventListener('click', () => {
-    $$('[data-decision]').forEach(x => x.classList.remove('active'));
-    b.classList.add('active');
-    const w = $('#selTossWinner').value;
-    if (w) setToss(w, b.getAttribute('data-decision'));
-    else { currentMatch.toss = null; renderTossSummary(); }
-  }));
-
-  $('#btnStartMatch').addEventListener('click', startMatch);
-
-  /* ---- SCORECARD ---- */
-  $('#btnBackFromScorecard').addEventListener('click', () => {
-    if (currentMatch && currentMatch.status === 'complete') { renderSummary(); showScreen('summary'); }
-    else if (currentMatch && currentMatch.status === 'inningsbreak') { renderInningsBreak(); }
-    else { renderLive(); showScreen('live'); }
-  });
-  $('#btnScorecardPDF').addEventListener('click', () => { if (currentMatch) generatePDF(currentMatch, 'innings'); });
-
-  /* ---- SUMMARY ---- */
-  $('#btnBackFromSummary').addEventListener('click', () => { renderHome(); showScreen('home'); });
-
-  /* ---- HISTORY ---- */
-  $('#btnBackFromHistory').addEventListener('click', () => { renderHome(); showScreen('home'); });
-  $('#btnClearHistory').addEventListener('click', () => {
-    confirmModal('Clear all history?', 'This deletes every saved match permanently. This cannot be undone.', () => {
-      store = {};
-      saveStore();
-      setActive(null);
-      currentMatch = null;
-      renderHome();
-      renderHistory();
-      toast('History cleared');
-    });
-  });
-
-  /* ---- MODAL BACKDROP CLICK ---- */
-  $('#modalRoot').addEventListener('click', (e) => {
-    if (e.target.id === 'modalRoot') {
-      // Only allow closing if it's not a blocking modal (openers)
-      const title = $('#modalTitle').textContent || '';
-      if (title.indexOf('Opening line-up') === -1) closeModal();
-    }
-  });
-  document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && modalOpen) {
-      const title = $('#modalTitle').textContent || '';
-      if (title.indexOf('Opening line-up') === -1) closeModal();
-    }
-  });
-
-  /* ---- RESTORE ACTIVE MATCH ON LOAD ---- */
-  if (activeId && store[activeId]) {
-    const m = store[activeId];
-    currentMatch = m;
-    if (m.status === 'live') {
-      // restore live scoring
-      renderLive();
-      showScreen('live');
-    } else if (m.status === 'complete') {
-      renderSummary();
-      showScreen('summary');
-    } else if (m.status === 'inningsbreak') {
-      renderInningsBreak();
-    } else if (m.status === 'setup') {
-      renderCreate();
-      showScreen('create');
-    }
-  } else {
-    renderHome();
-    showScreen('home');
-  }
-
-  // Save on unload
-  window.addEventListener('beforeunload', () => { try { if (currentMatch) saveMatch(); } catch (e) {} });
-  document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'hidden' && currentMatch) { try { saveMatch(); } catch (e) {} }
-  });
-}
-
-/* Boot */
-if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
-else init();
-
-})();
-</script>
-</body>
-</html>
+    line('Date: ' + fmtDate(match.date) + (match.venue ? '    Venue: ' + match.venue : '') + '    Overs: ' +
