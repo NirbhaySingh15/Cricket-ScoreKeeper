@@ -2,298 +2,598 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<meta name="theme-color" content="#0a1020">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#070B14">
 <title>Gully Cricket Scorekeeper</title>
 
 <!-- Optional PDF library (fallback to print-to-PDF if unavailable) -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 
 <style>
+/* ============================================================================
+   DESIGN SYSTEM
+   ============================================================================ */
 :root{
-  --bg:#0a1020; --bg2:#101a2e; --card:#16233c; --card2:#1c2c4a; --line:#24314f;
-  --text:#eef4ff; --muted:#93a3c0;
-  --green:#22c55e; --green-d:#15803d; --red:#ef4444; --red-d:#b91c1c;
-  --orange:#f59e0b; --yellow:#facc15; --blue:#3b82f6; --purple:#a855f7;
-  --radius:14px; --radius-s:10px;
+  --bg:#070B14;
+  --surface:#0E1626;
+  --surface-2:#131E33;
+  --surface-3:#1A2842;
+  --line:#1E2C48;
+  --line-2:#26375A;
+  --text:#EEF4FF;
+  --dim:#B9C8E2;
+  --muted:#7F93B5;
+  --green:#22C55E;
+  --green-ink:#04210F;
+  --green-deep:#15803D;
+  --lime:#C9F95A;
+  --amber:#F5A524;
+  --amber-ink:#241300;
+  --red:#EF4444;
+  --red-deep:#B91C1C;
+  --blue:#4F8CFF;
+  --r-xl:22px;
+  --r-lg:16px;
+  --r-md:12px;
+  --r-sm:9px;
+  --shadow-1:0 1px 2px rgba(0,0,0,.4), 0 10px 26px -14px rgba(0,0,0,.95);
+  --shadow-2:0 18px 40px -18px rgba(0,0,0,1);
+  --ease:cubic-bezier(.22,.61,.36,1);
 }
-*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+*,*::before,*::after{box-sizing:border-box}
 html,body{margin:0;padding:0}
 body{
-  background:#0a1020;
-  background-image:radial-gradient(1100px 520px at 50% -8%, #16305a 0%, #0a1020 62%);
+  background:var(--bg);
+  background-image:
+    radial-gradient(880px 460px at 50% -12%, rgba(34,197,94,.11), transparent 62%),
+    radial-gradient(620px 380px at 108% 2%, rgba(79,140,255,.09), transparent 60%);
   background-attachment:fixed;
   color:var(--text);
   font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
-  font-size:15px;line-height:1.42;min-height:100vh;
+  font-size:15px;
+  line-height:1.45;
+  min-height:100vh;
   -webkit-font-smoothing:antialiased;
+  text-rendering:optimizeLegibility;
+  -webkit-tap-highlight-color:transparent;
+  overscroll-behavior-y:none;
 }
-#app{max-width:780px;margin:0 auto;padding:12px 12px 100px}
-.screen{display:none;animation:fade .18s ease}
-.screen.active{display:block}
-@keyframes fade{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+#app{max-width:760px;margin:0 auto;padding:14px 14px calc(40px + env(safe-area-inset-bottom))}
 
-h1,h2,h3,h4{margin:0 0 8px;font-weight:700;letter-spacing:.2px}
-h1{font-size:20px}
-h2{font-size:16px;color:#dbe7ff}
-h3{font-size:14px;color:#c7d6f2;text-transform:uppercase;letter-spacing:.7px}
+.screen{display:none}
+.screen.active{display:block;animation:screenIn .24s var(--ease)}
+@keyframes screenIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+
+h1,h2,h3,h4{margin:0;font-weight:700;letter-spacing:-.1px}
+h1{font-size:19px}
+h2{font-size:15px;color:var(--text)}
+h3{font-size:11.5px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;font-weight:800}
 p{margin:0 0 8px}
 small,.small{font-size:12px;color:var(--muted)}
 .muted{color:var(--muted)}
 .center{text-align:center}
-.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
-.row.between{justify-content:space-between}
-.grow{flex:1}
 .hidden{display:none !important}
 
-/* ---------- Cards ---------- */
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.row.between{justify-content:space-between}
+.grow{flex:1;min-width:0}
+.divider{height:1px;background:var(--line);margin:12px 0}
+.empty{text-align:center;color:var(--muted);padding:24px 10px;font-size:13.5px;line-height:1.7}
+
+/* numeric alignment */
+.num, .sb-score, .sb-overs b, .bat-r, td.num, th.num{font-variant-numeric:tabular-nums;font-feature-settings:"tnum" 1}
+
+/* ============================================================================
+   CARDS
+   ============================================================================ */
 .card{
-  background:linear-gradient(180deg,var(--card) 0%,var(--card2) 100%);
-  border:1px solid var(--line);border-radius:var(--radius);
-  padding:14px;margin-bottom:12px;
-  box-shadow:0 6px 20px rgba(0,0,0,.28);
+  position:relative;
+  background:linear-gradient(180deg,var(--surface-2) 0%,var(--surface) 100%);
+  border:1px solid var(--line);
+  border-radius:var(--r-lg);
+  padding:14px;
+  margin-bottom:12px;
+  box-shadow:var(--shadow-1);
+}
+.card::before{
+  content:"";position:absolute;inset:0;border-radius:inherit;pointer-events:none;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.045);
 }
 .card.tight{padding:10px}
-.card-title{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:10px}
+.card-title{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:12px}
+.card-title h2{font-size:14px;letter-spacing:.2px}
 
-/* ---------- Buttons ---------- */
+/* ============================================================================
+   BUTTONS
+   ============================================================================ */
 .btn{
-  display:inline-flex;align-items:center;justify-content:center;gap:6px;
-  min-height:46px;padding:10px 16px;border-radius:12px;border:1px solid var(--line);
-  background:#20304e;color:var(--text);font-size:15px;font-weight:600;
-  cursor:pointer;transition:transform .08s ease,background .15s ease,opacity .15s;
-  font-family:inherit;user-select:none;text-align:center;
+  display:inline-flex;align-items:center;justify-content:center;gap:7px;
+  min-height:48px;padding:0 18px;border-radius:var(--r-md);
+  border:1px solid var(--line-2);
+  background:var(--surface-3);color:var(--text);
+  font-size:14.5px;font-weight:700;letter-spacing:.15px;
+  font-family:inherit;cursor:pointer;user-select:none;
+  transition:transform .1s var(--ease), background .18s, border-color .18s, opacity .18s;
+  text-align:center;
 }
 .btn:active{transform:scale(.97)}
-.btn:disabled{opacity:.4;cursor:not-allowed}
+.btn:disabled{opacity:.38;cursor:not-allowed;transform:none}
 .btn-block{display:flex;width:100%}
-.btn-primary{background:linear-gradient(180deg,#22c55e,#15803d);border-color:#16a34a;color:#04170a}
-.btn-danger{background:linear-gradient(180deg,#ef4444,#b91c1c);border-color:#dc2626;color:#fff}
-.btn-warn{background:linear-gradient(180deg,#f59e0b,#b45309);border-color:#d97706;color:#1a0f00}
-.btn-ghost{background:transparent;border-color:var(--line);color:#c7d6f2}
-.btn-sm{min-height:38px;padding:6px 12px;font-size:13px;border-radius:10px}
-.btn-xs{min-height:32px;padding:4px 10px;font-size:12px;border-radius:8px}
+.btn-lg{min-height:54px;font-size:16px;border-radius:var(--r-lg)}
 
-/* ---------- Forms ---------- */
-label{display:block;font-size:12px;font-weight:600;color:#a9bade;margin-bottom:5px;text-transform:uppercase;letter-spacing:.5px}
-input[type=text],input[type=number],input[type=date],select,textarea{
-  width:100%;min-height:46px;padding:10px 12px;border-radius:10px;
-  border:1px solid var(--line);background:#0f1a2e;color:var(--text);
-  font-size:16px;font-family:inherit;outline:none;
+.btn-primary{
+  background:linear-gradient(180deg,#2AD06A,#17A34A);
+  border-color:#1DB955;color:var(--green-ink);
+  box-shadow:0 8px 22px -12px rgba(34,197,94,.9);
 }
-input:focus,select:focus,textarea:focus{border-color:var(--green);box-shadow:0 0 0 3px rgba(34,197,94,.15)}
-textarea{min-height:70px;resize:vertical}
-.form-row{margin-bottom:12px}
-.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-@media(max-width:420px){.form-grid{grid-template-columns:1fr}}
+.btn-danger{
+  background:linear-gradient(180deg,#F05252,#C62F2F);
+  border-color:#D93B3B;color:#fff;
+  box-shadow:0 8px 22px -12px rgba(239,68,68,.8);
+}
+.btn-warn{
+  background:linear-gradient(180deg,#F7B23B,#DE8A0C);
+  border-color:#E89B24;color:var(--amber-ink);
+}
+.btn-ghost{background:rgba(255,255,255,.035);border-color:var(--line-2);color:var(--dim)}
+.btn-sm{min-height:38px;padding:0 13px;font-size:13px;border-radius:var(--r-sm)}
+.btn-xs{min-height:32px;padding:0 11px;font-size:12px;border-radius:8px}
+
+.icon-btn{
+  width:40px;height:40px;min-height:40px;padding:0;flex:0 0 auto;
+  display:inline-flex;align-items:center;justify-content:center;
+  border-radius:var(--r-md);border:1px solid var(--line-2);
+  background:rgba(255,255,255,.04);color:var(--dim);
+  font-size:16px;font-family:inherit;cursor:pointer;
+  transition:transform .1s var(--ease),background .18s;
+}
+.icon-btn:active{transform:scale(.94)}
+.icon-btn.danger{border-color:rgba(239,68,68,.35);color:#FF9D9D;background:rgba(239,68,68,.12)}
+
+/* ============================================================================
+   FORMS
+   ============================================================================ */
+label{display:block;font-size:11px;font-weight:800;color:var(--muted);margin-bottom:6px;text-transform:uppercase;letter-spacing:.9px}
+input[type=text],input[type=number],input[type=date],select,textarea{
+  width:100%;min-height:48px;padding:0 13px;border-radius:var(--r-md);
+  border:1px solid var(--line-2);background:#0A1322;color:var(--text);
+  font-size:16px;font-family:inherit;outline:none;
+  transition:border-color .18s, box-shadow .18s;
+  -webkit-appearance:none;appearance:none;
+}
+input[type=number]{-moz-appearance:textfield}
+input[type=number]::-webkit-outer-spin-button,
+input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+select{
+  background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'><path d='M1 1l5 5 5-5' fill='none' stroke='%237F93B5' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/></svg>");
+  background-repeat:no-repeat;background-position:right 14px center;padding-right:36px;
+}
+input:focus,select:focus,textarea:focus{border-color:rgba(34,197,94,.65);box-shadow:0 0 0 3px rgba(34,197,94,.14)}
+textarea{min-height:76px;padding:12px 13px;resize:vertical;line-height:1.5}
+.form-row{margin-bottom:14px}
+.form-row:last-child{margin-bottom:0}
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media(max-width:430px){.form-grid{grid-template-columns:1fr}}
 
 /* Toggle switch */
-.switch{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 0;border-bottom:1px solid rgba(36,49,79,.7)}
-.switch:last-child{border-bottom:none}
-.switch .sw-label{font-size:14px;font-weight:600;color:#dbe7ff}
-.switch .sw-sub{font-size:11.5px;color:var(--muted);font-weight:400;text-transform:none;letter-spacing:0}
-.tgl{position:relative;width:52px;height:30px;flex:0 0 auto}
-.tgl input{position:absolute;opacity:0;width:100%;height:100%;margin:0;cursor:pointer;z-index:2}
-.tgl .track{position:absolute;inset:0;background:#2a3a5c;border-radius:99px;transition:background .18s}
-.tgl .knob{position:absolute;top:3px;left:3px;width:24px;height:24px;border-radius:50%;background:#8fa4c8;transition:transform .18s,background .18s}
-.tgl input:checked ~ .track{background:var(--green-d)}
-.tgl input:checked ~ .knob{transform:translateX(22px);background:#eaffef}
-.tgl input:focus-visible ~ .track{box-shadow:0 0 0 3px rgba(34,197,94,.35)}
+.switch{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:12px 0;border-bottom:1px solid var(--line)}
+.switch:last-child{border-bottom:none;padding-bottom:0}
+.switch:first-child{padding-top:0}
+.sw-text{min-width:0}
+.sw-label{font-size:13.5px;font-weight:700;color:var(--text);line-height:1.3}
+.sw-sub{font-size:11.5px;color:var(--muted);margin-top:2px;line-height:1.35}
+.sw-ctl{display:flex;align-items:center;gap:9px;flex:0 0 auto}
+.sw-ctl input[type=number]{width:60px;min-height:36px;padding:0 8px;font-size:14px;text-align:center;border-radius:var(--r-sm)}
+.tgl{position:relative;display:inline-block;width:48px;height:28px;flex:0 0 auto}
+.tgl input{position:absolute;inset:0;width:100%;height:100%;margin:0;opacity:0;cursor:pointer;z-index:2}
+.tgl .track{position:absolute;inset:0;background:#22314F;border-radius:99px;transition:background .2s var(--ease)}
+.tgl .knob{position:absolute;top:3px;left:3px;width:22px;height:22px;border-radius:50%;background:#6C82A8;transition:transform .2s var(--ease),background .2s}
+.tgl input:checked ~ .track{background:var(--green)}
+.tgl input:checked ~ .knob{transform:translateX(20px);background:#062A14}
+.tgl input:focus-visible ~ .track{box-shadow:0 0 0 3px rgba(34,197,94,.3)}
 
-/* ---------- Header ---------- */
-.app-header{display:flex;align-items:center;gap:12px;margin-bottom:14px;padding-top:4px}
+/* ============================================================================
+   HEADER / BRAND
+   ============================================================================ */
+.app-header{display:flex;align-items:center;gap:12px;margin-bottom:16px;padding-top:2px}
+.app-header h1{font-size:17px;margin:0}
+.brand{display:flex;align-items:center;gap:12px}
 .logo{
-  width:48px;height:48px;border-radius:14px;flex:0 0 auto;
-  background:linear-gradient(180deg,#22c55e,#0f6b34);
-  display:flex;align-items:center;justify-content:center;font-size:26px;
-  box-shadow:0 6px 18px rgba(34,197,94,.3);
+  width:48px;height:48px;border-radius:15px;flex:0 0 auto;
+  display:flex;align-items:center;justify-content:center;font-size:25px;
+  background:linear-gradient(160deg,#25D06B,#0E7A3C);
+  box-shadow:0 10px 24px -10px rgba(34,197,94,.85), inset 0 1px 0 rgba(255,255,255,.25);
 }
-.app-header h1{font-size:19px;margin:0;line-height:1.15}
-.app-header .sub{font-size:12px;color:var(--muted);margin:0}
+.brand-text h1{font-size:19px;line-height:1.15;letter-spacing:-.4px}
+.brand-text p{font-size:11.5px;color:var(--muted);margin:2px 0 0;letter-spacing:.3px;text-transform:uppercase;font-weight:700}
 
-/* ---------- Live scoreboard ---------- */
-.scoreboard{
-  position:sticky;top:0;z-index:40;
-  background:linear-gradient(180deg,#12213c 0%,#0e1930 100%);
-  border:1px solid var(--line);border-radius:var(--radius);
-  padding:12px 14px;margin-bottom:12px;
-  box-shadow:0 8px 24px rgba(0,0,0,.45);
-  backdrop-filter:blur(6px);
-}
-.sb-top{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
-.sb-team{font-size:14px;font-weight:700;color:#dbe7ff;line-height:1.2}
-.sb-vs{font-size:11px;color:var(--muted)}
-.sb-score{font-size:34px;font-weight:800;line-height:1;letter-spacing:-1px;margin:6px 0 2px}
-.sb-score .wk{color:#ffb4b4;font-size:24px}
-.sb-overs{font-size:12.5px;color:var(--muted);font-weight:600}
-.sb-chase{
-  margin-top:8px;background:rgba(59,130,246,.14);border:1px solid rgba(59,130,246,.35);
-  border-radius:10px;padding:8px 10px;font-size:12.5px;font-weight:600;color:#bcd6ff;
-  display:grid;grid-template-columns:1fr 1fr;gap:4px 10px;
-}
-.sb-chase b{color:#fff}
-.sb-badge{
-  display:inline-block;font-size:10.5px;font-weight:700;letter-spacing:.6px;
-  padding:3px 8px;border-radius:99px;text-transform:uppercase;
-  background:rgba(34,197,94,.16);color:#7ff0a6;border:1px solid rgba(34,197,94,.4);
-}
-.sb-badge.red{background:rgba(239,68,68,.16);color:#ff9d9d;border-color:rgba(239,68,68,.4)}
-.sb-badge.orange{background:rgba(245,158,11,.16);color:#ffce7a;border-color:rgba(245,158,11,.4)}
-
-/* ---------- Tables ---------- */
-table{width:100%;border-collapse:collapse;font-size:13px}
-th{
-  text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:.6px;
-  color:#8ea4cc;font-weight:700;padding:6px 4px;border-bottom:1px solid var(--line);
-}
-td{padding:7px 4px;border-bottom:1px solid rgba(36,49,79,.55);vertical-align:middle}
-tr:last-child td{border-bottom:none}
-td.num,th.num{text-align:right}
-.bat-name{font-weight:700;color:#eef4ff}
-.bat-sub{font-size:11px;color:var(--muted);display:block;font-weight:400}
-.striker-star{color:var(--green);font-weight:900}
-.out-text{font-size:11px;color:#93a3c0}
-.tbl-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
-
-/* ---------- Current over ---------- */
-.over-balls{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
-.ball{
-  min-width:38px;height:38px;padding:0 6px;border-radius:50%;
+/* ============================================================================
+   BADGES / PILLS / CHIPS
+   ============================================================================ */
+.pill{
   display:inline-flex;align-items:center;justify-content:center;
-  font-weight:800;font-size:13px;background:#22314f;color:#dbe7ff;
-  border:1px solid #2c3d61;flex:0 0 auto;
+  min-height:22px;padding:2px 10px;border-radius:99px;
+  font-size:11px;font-weight:800;letter-spacing:.3px;
+  background:rgba(255,255,255,.06);border:1px solid var(--line-2);color:var(--dim);
 }
-.ball.four{background:#14532d;border-color:#22c55e;color:#a7f3c0}
-.ball.six{background:#166534;border-color:#4ade80;color:#d9ffe6}
-.ball.wicket{background:#7f1d1d;border-color:#ef4444;color:#ffdada}
-.ball.extra{background:#78350f;border-color:#f59e0b;color:#ffe2b0}
-.ball.dot{background:#1a2540;color:#6d81a5}
-.ball.small{min-width:32px;height:32px;font-size:11.5px;border-radius:9px}
+.pill.green{background:rgba(34,197,94,.14);color:#7DF2A6;border-color:rgba(34,197,94,.35)}
+.pill.red{background:rgba(239,68,68,.14);color:#FFA3A3;border-color:rgba(239,68,68,.35)}
+.pill.orange{background:rgba(245,165,36,.14);color:#FFCF7A;border-color:rgba(245,165,36,.35)}
+.pill.blue{background:rgba(79,140,255,.14);color:#A9C6FF;border-color:rgba(79,140,255,.35)}
 
-/* ---------- Scoring pad ---------- */
-.pad{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
-.sbtn{
-  min-height:58px;border-radius:12px;border:1px solid #2c3d61;
-  background:linear-gradient(180deg,#22314f,#1a2740);color:#eef4ff;
-  font-size:20px;font-weight:800;cursor:pointer;font-family:inherit;
-  transition:transform .07s ease,background .12s;display:flex;align-items:center;justify-content:center;
-}
-.sbtn:active{transform:scale(.95)}
-.sbtn:disabled{opacity:.35;cursor:not-allowed}
-.sbtn.boundary4{background:linear-gradient(180deg,#15803d,#0f5f2e);border-color:#22c55e}
-.sbtn.boundary6{background:linear-gradient(180deg,#166534,#0d4a24);border-color:#4ade80}
-.sbtn.ext{
-  font-size:13px;min-height:52px;letter-spacing:.3px;
-  background:linear-gradient(180deg,#7c4a0d,#5c360a);border-color:#b45309;color:#ffe2b0;
-}
-.sbtn.wicket{background:linear-gradient(180deg,#b91c1c,#7f1d1d);border-color:#ef4444;color:#fff;font-size:14px;letter-spacing:.5px}
-.pad-extras{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:8px}
-
-/* ---------- Misc ---------- */
 .chip-row{display:flex;gap:8px;flex-wrap:wrap}
 .chip{
-  min-height:42px;padding:8px 14px;border-radius:99px;border:1px solid var(--line);
-  background:#1a2740;color:#c7d6f2;font-size:13.5px;font-weight:600;cursor:pointer;font-family:inherit;
+  min-height:42px;padding:0 16px;border-radius:99px;
+  border:1px solid var(--line-2);background:rgba(255,255,255,.04);color:var(--dim);
+  font-size:13.5px;font-weight:700;font-family:inherit;cursor:pointer;
+  transition:all .16s var(--ease);
 }
-.chip.active{background:linear-gradient(180deg,#22c55e,#15803d);border-color:#16a34a;color:#04170a}
+.chip:active{transform:scale(.96)}
+.chip.active{background:linear-gradient(180deg,#2AD06A,#17A34A);border-color:#1DB955;color:var(--green-ink);box-shadow:0 6px 18px -10px rgba(34,197,94,.9)}
+
+/* ============================================================================
+   LIST (players)
+   ============================================================================ */
 .list{list-style:none;margin:0;padding:0}
 .list li{
-  display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:10px;
-  background:#0f1a2e;border:1px solid var(--line);margin-bottom:7px;
+  display:flex;align-items:center;gap:10px;padding:8px 10px;
+  border-radius:var(--r-md);background:#0A1322;border:1px solid var(--line);
+  margin-bottom:7px;
 }
-.list li .nm{flex:1;font-weight:600;font-size:14px}
-.icon-btn{
-  width:36px;height:36px;min-height:36px;padding:0;border-radius:9px;display:inline-flex;
-  align-items:center;justify-content:center;border:1px solid var(--line);background:#1a2740;
-  color:#c7d6f2;cursor:pointer;font-size:15px;font-family:inherit;flex:0 0 auto;
-}
-.icon-btn.danger{border-color:#7f1d1d;color:#ff9d9d;background:#2a1216}
-.empty{text-align:center;color:var(--muted);padding:18px 8px;font-size:13.5px}
-.divider{height:1px;background:var(--line);margin:12px 0}
-.pill{
-  display:inline-block;padding:3px 9px;border-radius:99px;font-size:11px;font-weight:700;
-  background:#1d2c49;border:1px solid var(--line);color:#a9bade;
-}
-.pill.green{background:rgba(34,197,94,.15);color:#7ff0a6;border-color:rgba(34,197,94,.4)}
-.pill.red{background:rgba(239,68,68,.15);color:#ff9d9d;border-color:rgba(239,68,68,.4)}
-.pill.orange{background:rgba(245,158,11,.15);color:#ffce7a;border-color:rgba(245,158,11,.4)}
-.pill.blue{background:rgba(59,130,246,.15);color:#bcd6ff;border-color:rgba(59,130,246,.4)}
+.list li:last-child{margin-bottom:0}
+.list li .nm{flex:1;min-width:0;font-weight:600;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 
-/* ---------- Modal ---------- */
-#modalRoot{
-  position:fixed;inset:0;z-index:200;display:flex;align-items:flex-end;justify-content:center;
-  background:rgba(4,8,18,.72);backdrop-filter:blur(3px);padding:0;
+/* ============================================================================
+   LIVE SCOREBOARD
+   ============================================================================ */
+.scoreboard{
+  position:sticky;top:0;z-index:40;
+  margin:0 0 12px;
+  padding:14px 16px 13px;
+  border-radius:var(--r-xl);
+  background:linear-gradient(165deg,#14304A 0%,#0C1828 52%,#091120 100%);
+  border:1px solid #1F3A5C;
+  box-shadow:0 16px 36px -18px rgba(0,0,0,1), inset 0 1px 0 rgba(255,255,255,.06);
+  overflow:hidden;
+  backdrop-filter:blur(10px);
+  -webkit-backdrop-filter:blur(10px);
 }
-@media(min-width:600px){#modalRoot{align-items:center;padding:20px}}
-#modalRoot.hidden{display:none}
-.modal{
-  width:100%;max-width:560px;max-height:92vh;overflow-y:auto;
-  background:linear-gradient(180deg,#17253f,#111c31);
-  border:1px solid var(--line);border-radius:18px 18px 0 0;
-  padding:18px 16px calc(18px + env(safe-area-inset-bottom));
-  box-shadow:0 -8px 40px rgba(0,0,0,.6);
-  animation:slideUp .22s ease;
+.scoreboard::after{
+  content:"";position:absolute;left:0;right:0;top:0;height:2px;
+  background:linear-gradient(90deg,transparent,var(--green),transparent);
+  opacity:.7;
 }
-@media(min-width:600px){.modal{border-radius:18px;animation:fade .18s ease}}
-@keyframes slideUp{from{transform:translateY(30px);opacity:0}to{transform:none;opacity:1}}
-.modal h3{font-size:17px;text-transform:none;letter-spacing:0;color:#fff;margin-bottom:14px}
-.modal-actions{display:flex;gap:8px;margin-top:16px}
-.modal-actions .btn{flex:1}
-.seg{display:grid;grid-template-columns:1fr 1fr;gap:8px}
-.seg-btn{
-  min-height:46px;border-radius:10px;border:1px solid var(--line);background:#0f1a2e;
-  color:#c7d6f2;font-weight:600;font-size:13.5px;cursor:pointer;font-family:inherit;padding:6px 8px;
+.sb-top{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
+.sb-team-wrap{min-width:0}
+.sb-team{display:block;font-size:13.5px;font-weight:800;color:var(--text);letter-spacing:.1px;line-height:1.25;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sb-vs{display:block;font-size:11px;color:var(--muted);margin-top:1px}
+.sb-badge{
+  flex:0 0 auto;font-size:9.5px;font-weight:900;letter-spacing:1px;
+  padding:5px 10px;border-radius:99px;white-space:nowrap;
+  background:rgba(34,197,94,.15);color:#7DF2A6;border:1px solid rgba(34,197,94,.38);
 }
-.seg-btn.active{background:linear-gradient(180deg,#22c55e,#15803d);border-color:#16a34a;color:#04170a}
-.opts{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px}
-.opt-btn{
-  min-height:56px;border-radius:12px;border:1px solid var(--line);background:#0f1a2e;color:#eef4ff;
-  font-weight:700;font-size:14px;cursor:pointer;font-family:inherit;padding:8px;
-}
-.opt-btn.active{background:linear-gradient(180deg,#22c55e,#15803d);border-color:#16a34a;color:#04170a}
+.sb-badge.free{background:rgba(245,165,36,.18);color:#FFCF7A;border-color:rgba(245,165,36,.45);animation:pulseFree 1.4s ease-in-out infinite}
+@keyframes pulseFree{0%,100%{opacity:1}50%{opacity:.55}}
 
-/* ---------- Coin ---------- */
-.coin-wrap{display:flex;justify-content:center;padding:14px 0 6px;perspective:800px}
+.sb-mid{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;margin-top:8px}
+.sb-score{font-size:44px;font-weight:800;line-height:.94;letter-spacing:-2.5px;color:#fff;display:flex;align-items:baseline}
+.sb-score .sb-wk{font-size:27px;font-weight:800;color:#FF8A8A;letter-spacing:-1px;margin-left:2px}
+.sb-right{text-align:right;padding-bottom:3px}
+.sb-overs{font-size:12px;color:var(--muted);font-weight:600;white-space:nowrap}
+.sb-overs b{font-size:15px;color:var(--text);font-weight:800;margin-right:3px}
+.sb-crr{font-size:11px;color:var(--muted);font-weight:600;margin-top:3px;white-space:nowrap}
+.sb-crr b{color:var(--lime);font-weight:800}
+
+.sb-chase{
+  margin-top:10px;display:grid;grid-template-columns:repeat(4,1fr);gap:6px;
+  background:rgba(79,140,255,.10);border:1px solid rgba(79,140,255,.28);
+  border-radius:var(--r-md);padding:8px 8px;
+}
+.sb-chase-item{text-align:center;min-width:0}
+.sb-chase-item span{display:block;font-size:9px;text-transform:uppercase;letter-spacing:.8px;color:#8FB4F5;font-weight:800;white-space:nowrap}
+.sb-chase-item b{display:block;font-size:15px;font-weight:800;color:#fff;line-height:1.25;font-variant-numeric:tabular-nums}
+
+.sb-crease{display:flex;gap:6px;margin-top:10px;align-items:stretch}
+.sb-cr{
+  display:flex;align-items:center;gap:5px;min-width:0;flex:1 1 0;
+  padding:6px 9px;border-radius:10px;
+  background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.07);
+  font-size:11px;color:var(--dim);
+}
+.sb-cr .sb-nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600;flex:1;min-width:0}
+.sb-cr b{color:#fff;font-weight:800;font-variant-numeric:tabular-nums;font-size:12px}
+.sb-cr .sb-bl{color:var(--muted);font-size:10px;font-variant-numeric:tabular-nums}
+.sb-cr.on{background:rgba(34,197,94,.13);border-color:rgba(34,197,94,.35);color:#C8F7DA}
+.sb-cr.on b{color:#B7FFD0}
+.sb-cr.bowl{background:rgba(245,165,36,.11);border-color:rgba(245,165,36,.28);color:#FFD79A;flex:0 0 auto}
+.sb-cr.bowl b{color:#FFD79A}
+.sb-dot{width:6px;height:6px;border-radius:50%;background:var(--lime);flex:0 0 auto;box-shadow:0 0 0 3px rgba(201,249,90,.16)}
+
+/* ============================================================================
+   TABLES
+   ============================================================================ */
+.tbl-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch;margin:0 -4px}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{
+  text-align:left;font-size:9.5px;text-transform:uppercase;letter-spacing:1px;
+  color:var(--muted);font-weight:800;padding:6px 5px 8px;border-bottom:1px solid var(--line);
+  white-space:nowrap;
+}
+td{padding:9px 5px;border-bottom:1px solid rgba(30,44,72,.6);vertical-align:middle}
+tr:last-child td{border-bottom:none}
+td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
+.bat-name{font-weight:700;color:var(--text);display:inline-block;line-height:1.25}
+.bat-sub{font-size:10.5px;color:var(--muted);display:block;font-weight:500;line-height:1.3;margin-top:1px}
+.out-text{color:#8FA3C4}
+.striker-star{color:var(--lime);font-weight:900;font-size:11px;vertical-align:middle}
+.row-active td{background:rgba(34,197,94,.055)}
+.row-active td:first-child{border-radius:8px 0 0 8px}
+.row-active td:last-child{border-radius:0 8px 8px 0}
+
+/* ============================================================================
+   BALL CHIPS
+   ============================================================================ */
+.over-balls{display:flex;gap:7px;flex-wrap:wrap;align-items:center}
+.ball{
+  min-width:40px;height:40px;padding:0 8px;border-radius:50%;
+  display:inline-flex;align-items:center;justify-content:center;
+  font-weight:800;font-size:13px;font-family:inherit;
+  background:#1A2740;color:#C9D8F2;border:1px solid #2A3C60;
+  flex:0 0 auto;font-variant-numeric:tabular-nums;
+  animation:ballPop .22s var(--ease);
+}
+@keyframes ballPop{from{transform:scale(.6);opacity:0}to{transform:scale(1);opacity:1}}
+.ball.four{background:linear-gradient(180deg,#1D8A48,#12602F);border-color:#34D16E;color:#D6FFE5}
+.ball.six{background:linear-gradient(180deg,#23A855,#0F6B33);border-color:#6BE89B;color:#EAFFF1}
+.ball.wicket{background:linear-gradient(180deg,#D93B3B,#8E1D1D);border-color:#F26A6A;color:#FFE2E2}
+.ball.extra{background:linear-gradient(180deg,#B8730D,#7A4A06);border-color:#E8A93B;color:#FFE6BC}
+.ball.dot{background:#141F35;color:#607AA0;border-color:#1E2C48}
+.ball.small{min-width:34px;height:34px;font-size:11.5px;border-radius:10px;animation:none}
+
+/* ============================================================================
+   SCORING PAD
+   ============================================================================ */
+.pad-runs{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.run-btn{
+  min-height:60px;border-radius:14px;
+  border:1px solid #2A3C60;
+  background:linear-gradient(180deg,#1D2B47,#152139);
+  color:var(--text);
+  font-size:22px;font-weight:800;font-family:inherit;
+  cursor:pointer;display:flex;align-items:center;justify-content:center;
+  transition:transform .08s var(--ease), background .15s, border-color .15s;
+  font-variant-numeric:tabular-nums;
+  user-select:none;
+}
+.run-btn:active{transform:scale(.94)}
+.run-btn:disabled{opacity:.3;cursor:not-allowed;transform:none}
+.run-btn.is-four{
+  background:linear-gradient(180deg,#1D8A48,#12602F);
+  border-color:#34D16E;color:#EAFFF2;
+  box-shadow:0 6px 18px -12px rgba(52,209,110,.9);
+}
+.run-btn.is-six{
+  background:linear-gradient(180deg,#23A855,#0F6B33);
+  border-color:#6BE89B;color:#F0FFF5;
+  box-shadow:0 6px 18px -12px rgba(107,232,155,.9);
+}
+.run-btn.is-wicket{
+  background:linear-gradient(180deg,#D93B3B,#8E1D1D);
+  border-color:#F26A6A;color:#fff;font-size:15px;letter-spacing:1.2px;
+  box-shadow:0 6px 18px -12px rgba(239,68,68,.9);
+}
+.pad-extras{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:8px}
+.ext-btn{
+  min-height:46px;border-radius:12px;
+  border:1px solid rgba(232,169,59,.42);
+  background:linear-gradient(180deg,rgba(184,115,13,.30),rgba(122,74,6,.26));
+  color:#FFD79A;
+  font-size:12px;font-weight:800;letter-spacing:.7px;font-family:inherit;
+  cursor:pointer;display:flex;align-items:center;justify-content:center;
+  transition:transform .08s var(--ease),background .15s;
+  padding:0 6px;
+}
+.ext-btn:active{transform:scale(.95)}
+.ext-btn:disabled{opacity:.3;cursor:not-allowed;transform:none}
+
+/* ============================================================================
+   CONTROL GRID
+   ============================================================================ */
+.ctrl-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:8px}
+.ctrl{
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;
+  min-height:56px;padding:6px 2px;border-radius:12px;
+  border:1px solid var(--line-2);background:rgba(255,255,255,.035);
+  color:var(--dim);font-family:inherit;font-size:9.5px;font-weight:700;
+  letter-spacing:.2px;cursor:pointer;
+  transition:transform .08s var(--ease),background .16s,border-color .16s;
+}
+.ctrl:active{transform:scale(.94)}
+.ctrl:disabled{opacity:.35;cursor:not-allowed;transform:none}
+.ctrl span{font-size:16px;line-height:1;color:#A9BEE0}
+.ctrl.warn{border-color:rgba(245,165,36,.35);background:rgba(245,165,36,.10);color:#FFCF7A}
+.ctrl.warn span{color:#FFCF7A}
+.ctrl.danger{border-color:rgba(239,68,68,.35);background:rgba(239,68,68,.10);color:#FFA3A3}
+.ctrl.danger span{color:#FFA3A3}
+
+/* ============================================================================
+   STEPS
+   ============================================================================ */
+.steps{display:flex;gap:6px;margin-bottom:16px}
+.step-dot{flex:1;height:4px;border-radius:99px;background:#1D2B47;transition:background .25s var(--ease)}
+.step-dot.active{background:var(--green);box-shadow:0 0 12px -2px rgba(34,197,94,.7)}
+.step-dot.done{background:var(--green-deep)}
+
+/* ============================================================================
+   COIN
+   ============================================================================ */
+.coin-wrap{display:flex;justify-content:center;padding:18px 0 10px;perspective:900px}
 .coin{
-  width:110px;height:110px;border-radius:50%;
-  background:radial-gradient(circle at 32% 28%,#ffe89a,#d4a017 55%,#8a6208);
+  width:118px;height:118px;border-radius:50%;
+  background:radial-gradient(circle at 33% 27%,#FFEFB0,#E0AF22 52%,#8A6208);
   display:flex;align-items:center;justify-content:center;
-  font-weight:900;font-size:20px;color:#4a3200;letter-spacing:1px;
-  border:4px solid #f2c94c;box-shadow:0 10px 30px rgba(212,160,23,.35);
-  transform-style:preserve-3d;transition:transform .1s;
+  font-weight:900;font-size:34px;color:#4A3200;letter-spacing:1px;
+  border:4px solid #F6D267;
+  box-shadow:0 16px 38px -14px rgba(224,175,34,.55), inset 0 2px 10px rgba(255,255,255,.55);
+  transform-style:preserve-3d;
 }
 .coin.flipping{animation:coinflip 1.2s ease-in-out}
 @keyframes coinflip{
   0%{transform:rotateY(0) translateY(0)}
-  25%{transform:rotateY(720deg) translateY(-46px)}
-  50%{transform:rotateY(1440deg) translateY(-58px)}
-  75%{transform:rotateY(2160deg) translateY(-26px)}
+  25%{transform:rotateY(720deg) translateY(-48px)}
+  50%{transform:rotateY(1440deg) translateY(-62px)}
+  75%{transform:rotateY(2160deg) translateY(-28px)}
   100%{transform:rotateY(2880deg) translateY(0)}
 }
 
-/* ---------- Steps ---------- */
-.steps{display:flex;gap:6px;margin-bottom:14px}
-.step-dot{flex:1;height:5px;border-radius:99px;background:#24314f;transition:background .2s}
-.step-dot.active{background:var(--green)}
-.step-dot.done{background:#15803d}
-
-/* ---------- FAB / bottom bar ---------- */
-.bottom-bar{
-  position:fixed;left:0;right:0;bottom:0;z-index:60;
-  background:linear-gradient(180deg,rgba(10,16,32,.6),#0a1020 60%);
-  padding:10px 12px calc(10px + env(safe-area-inset-bottom));
-  border-top:1px solid var(--line);
+/* ============================================================================
+   MODAL
+   ============================================================================ */
+#modalRoot{
+  position:fixed;inset:0;z-index:200;
+  display:flex;align-items:flex-end;justify-content:center;
+  background:rgba(3,7,15,.74);
+  backdrop-filter:blur(5px);-webkit-backdrop-filter:blur(5px);
+  padding:0;
 }
-.bottom-bar .inner{max-width:780px;margin:0 auto;display:flex;gap:8px}
+#modalRoot.hidden{display:none}
+.modal{
+  width:100%;max-width:560px;max-height:92vh;overflow-y:auto;overscroll-behavior:contain;
+  background:linear-gradient(180deg,#152138 0%,#0D1524 100%);
+  border:1px solid var(--line-2);
+  border-top-left-radius:24px;border-top-right-radius:24px;border-bottom:none;
+  padding:8px 18px calc(20px + env(safe-area-inset-bottom));
+  box-shadow:0 -24px 60px rgba(0,0,0,.85);
+  animation:sheetUp .26s var(--ease);
+}
+.modal::before{
+  content:"";display:block;width:38px;height:4px;border-radius:99px;
+  background:#2C3D60;margin:6px auto 16px;
+}
+@keyframes sheetUp{from{transform:translateY(36px);opacity:0}to{transform:none;opacity:1}}
+@media(min-width:600px){
+  #modalRoot{align-items:center;padding:20px}
+  .modal{border-radius:20px;border-bottom:1px solid var(--line-2);animation:popIn .2s var(--ease)}
+  .modal::before{display:none}
+}
+@keyframes popIn{from{transform:scale(.96);opacity:0}to{transform:none;opacity:1}}
+.modal h3{font-size:18px;text-transform:none;letter-spacing:-.3px;color:#fff;margin-bottom:16px;font-weight:800}
+.modal-actions{display:flex;gap:9px;margin-top:18px}
+.modal-actions .btn{flex:1}
 
-/* ---------- Print / fallback ---------- */
-.print-doc{font-family:Arial,Helvetica,sans-serif;color:#111;background:#fff;padding:24px;max-width:820px;margin:0 auto}
-.print-doc h1{font-size:20px;color:#111}
-.print-doc h2{font-size:15px;color:#111;margin-top:18px;border-bottom:1px solid #999;padding-bottom:4px}
-.print-doc table{width:100%;border-collapse:collapse;font-size:12px;margin:8px 0}
-.print-doc th,.print-doc td{border:1px solid #bbb;padding:4px 6px;text-align:left;color:#111}
-.print-doc th{background:#eee}
-.print-doc .num{text-align:right}
+.seg{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.seg-btn{
+  min-height:48px;border-radius:var(--r-md);border:1px solid var(--line-2);
+  background:rgba(255,255,255,.035);color:var(--dim);
+  font-weight:700;font-size:13.5px;font-family:inherit;cursor:pointer;padding:6px 10px;
+  transition:all .16s var(--ease);
+}
+.seg-btn:active{transform:scale(.97)}
+.seg-btn.active{background:linear-gradient(180deg,#2AD06A,#17A34A);border-color:#1DB955;color:var(--green-ink);box-shadow:0 6px 18px -10px rgba(34,197,94,.9)}
+.opt-btn{
+  min-height:60px;border-radius:14px;border:1px solid var(--line-2);
+  background:rgba(255,255,255,.035);color:var(--text);
+  font-weight:700;font-size:14px;font-family:inherit;cursor:pointer;padding:10px;
+  transition:all .16s var(--ease);text-align:left;
+}
+.opt-btn:active{transform:scale(.97)}
+.opt-btn.active{background:linear-gradient(180deg,#2AD06A,#17A34A);border-color:#1DB955;color:var(--green-ink);box-shadow:0 6px 18px -10px rgba(34,197,94,.9)}
+.opt-btn:disabled{opacity:.6;cursor:default}
+
+/* ============================================================================
+   TOAST
+   ============================================================================ */
+#gcs-toast{
+  position:fixed;left:50%;bottom:calc(24px + env(safe-area-inset-bottom));
+  transform:translateX(-50%) translateY(14px);z-index:999;
+  background:linear-gradient(180deg,#1B2A46,#141F35);
+  color:var(--text);border:1px solid var(--line-2);
+  padding:12px 20px;border-radius:14px;
+  font-size:13.5px;font-weight:700;letter-spacing:.1px;
+  box-shadow:0 18px 44px -14px rgba(0,0,0,.95);
+  max-width:88vw;text-align:center;
+  opacity:0;pointer-events:none;
+  transition:opacity .26s var(--ease), transform .26s var(--ease);
+}
+#gcs-toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+/* ============================================================================
+   HOME
+   ============================================================================ */
+.resume-card{
+  position:relative;overflow:hidden;
+  border-color:rgba(34,197,94,.42) !important;
+  background:linear-gradient(160deg,rgba(23,74,44,.55) 0%,#0E1626 62%) !important;
+}
+.resume-card::after{
+  content:"";position:absolute;right:-40px;top:-40px;width:150px;height:150px;border-radius:50%;
+  background:radial-gradient(circle,rgba(34,197,94,.22),transparent 68%);
+  pointer-events:none;
+}
+.resume-score{
+  font-size:19px;font-weight:800;color:#9BF5B8;letter-spacing:-.4px;
+  margin:2px 0 12px;font-variant-numeric:tabular-nums;
+}
+
+/* ============================================================================
+   HISTORY CARDS
+   ============================================================================ */
+.hist-card{
+  border:1px solid var(--line);border-radius:var(--r-lg);
+  background:linear-gradient(180deg,rgba(255,255,255,.035),rgba(255,255,255,.012));
+  padding:13px 14px;margin-bottom:9px;
+}
+.hist-card:last-child{margin-bottom:0}
+.hist-top{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:4px}
+.hist-teams{font-size:14px;font-weight:800;color:var(--text);letter-spacing:-.2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.hist-teams span{color:var(--muted);font-weight:600;font-size:12px;margin:0 4px}
+.hist-meta{font-size:11.5px;color:var(--muted);margin-bottom:8px}
+.hist-scores{display:flex;flex-direction:column;gap:3px;margin-bottom:8px}
+.hs{display:flex;justify-content:space-between;align-items:baseline;gap:10px;font-size:12.5px;color:var(--dim)}
+.hs b{font-weight:800;color:var(--text);font-variant-numeric:tabular-nums;font-size:13px}
+.hist-result{font-size:12.5px;font-weight:800;color:#7DF2A6;margin-bottom:10px;line-height:1.35}
+.hist-actions{display:flex;gap:7px}
+
+/* ============================================================================
+   SUMMARY
+   ============================================================================ */
+.result-hero{
+  border:1px solid rgba(34,197,94,.38) !important;
+  background:linear-gradient(165deg,rgba(20,86,50,.68) 0%,rgba(14,22,38,1) 68%) !important;
+  text-align:center;padding:22px 16px !important;
+}
+.result-kicker{font-size:10px;letter-spacing:2.2px;text-transform:uppercase;color:#7DF2A6;font-weight:900}
+.result-text{font-size:22px;font-weight:900;letter-spacing:-.6px;margin:8px 0 16px;line-height:1.25;color:#fff}
+.result-scores{display:flex;justify-content:center;gap:10px}
+.rs{flex:1;max-width:150px;background:rgba(0,0,0,.28);border:1px solid rgba(255,255,255,.09);border-radius:14px;padding:10px 8px}
+.rs .rs-team{font-size:10.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.7px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rs .rs-val{font-size:19px;font-weight:900;color:#fff;margin-top:3px;font-variant-numeric:tabular-nums;letter-spacing:-.5px}
+.rs .rs-ov{font-size:10.5px;color:var(--muted);margin-top:1px}
+
+/* ============================================================================
+   INNINGS BREAK
+   ============================================================================ */
+.break-hero{
+  border:1px solid rgba(245,165,36,.35) !important;
+  background:linear-gradient(165deg,rgba(92,60,10,.5) 0%,#0E1626 65%) !important;
+}
+.break-target{font-size:26px;font-weight:900;color:var(--lime);letter-spacing:-1px;margin:4px 0 2px}
+
+/* ============================================================================
+   MISC
+   ============================================================================ */
+.team-count{font-size:11.5px;color:var(--muted);margin-top:8px;display:block}
+.setup-prompt{border-color:rgba(245,165,36,.45) !important;background:linear-gradient(165deg,rgba(88,56,10,.5),#0E1626 70%) !important}
+.setup-prompt .sp-title{font-weight:800;color:#FFCF7A;margin-bottom:10px;font-size:13.5px}
+.player-input-row{display:flex;gap:8px;margin-bottom:10px}
+.player-input-row input{flex:1;min-width:0}
+
+@media(max-width:360px){
+  .sb-score{font-size:38px}
+  .run-btn{min-height:54px;font-size:20px}
+  .ctrl-grid{grid-template-columns:repeat(5,1fr);gap:6px}
+  .ctrl{font-size:9px}
+}
 </style>
 </head>
 <body>
@@ -303,17 +603,22 @@ td.num,th.num{text-align:right}
   <!-- ============ HOME ============ -->
   <section id="screen-home" class="screen active">
     <header class="app-header">
-      <div class="logo">🏏</div>
-      <div>
-        <h1>Gully Cricket</h1>
-        <p class="sub">Scorekeeper · ball by ball</p>
+      <div class="brand">
+        <div class="logo">🏏</div>
+        <div class="brand-text">
+          <h1>Gully Cricket</h1>
+          <p>Scorekeeper · Ball by Ball</p>
+        </div>
       </div>
     </header>
+
     <div id="homeResume"></div>
-    <button class="btn btn-primary btn-block" id="btnNewMatch" style="margin-bottom:12px">＋ Create New Match</button>
+
+    <button class="btn btn-primary btn-block btn-lg" id="btnNewMatch" style="margin-bottom:14px">＋ Create New Match</button>
+
     <div class="card">
       <div class="card-title">
-        <h2>Previous Matches</h2>
+        <h2>Recent Matches</h2>
         <div class="row" style="gap:6px">
           <span class="pill" id="historyCount">0</span>
           <button class="btn btn-xs btn-ghost" id="btnViewAllHistory" title="View all matches">View All</button>
@@ -327,8 +632,9 @@ td.num,th.num{text-align:right}
   <section id="screen-create" class="screen">
     <header class="app-header">
       <button class="icon-btn" id="btnCancelCreate" title="Back">←</button>
-      <div class="grow"><h1 style="font-size:17px;margin:0">New Match</h1></div>
+      <div class="grow"><h1>New Match</h1></div>
     </header>
+
     <div class="steps" id="createSteps">
       <div class="step-dot active"></div><div class="step-dot"></div><div class="step-dot"></div>
       <div class="step-dot"></div><div class="step-dot"></div>
@@ -337,7 +643,7 @@ td.num,th.num{text-align:right}
     <!-- Step 1: details -->
     <div class="step-panel" data-step="0">
       <div class="card">
-        <h2>Match Details</h2>
+        <h2 style="margin-bottom:14px">Match Details</h2>
         <div class="form-row">
           <label for="inMatchName">Match name (optional)</label>
           <input type="text" id="inMatchName" placeholder="Sunday Gully Cup" autocomplete="off">
@@ -365,36 +671,36 @@ td.num,th.num{text-align:right}
           <textarea id="inMatchNotes" placeholder="Anything to remember about this match"></textarea>
         </div>
       </div>
-      <button class="btn btn-primary btn-block" data-next="1">Next: Teams →</button>
+      <button class="btn btn-primary btn-block btn-lg" data-next="1">Next: Teams →</button>
     </div>
 
     <!-- Step 2: teams -->
     <div class="step-panel hidden" data-step="1">
       <div class="card">
-        <h2>Team A</h2>
+        <h2 style="margin-bottom:14px">Team A</h2>
         <div class="form-row">
           <label for="inTeamAName">Team name</label>
           <input type="text" id="inTeamAName" placeholder="Team A" autocomplete="off">
         </div>
-        <div class="row" style="margin-bottom:8px">
-          <input type="text" id="inPlayerA" placeholder="Player name" class="grow" autocomplete="off" style="flex:1">
+        <div class="player-input-row">
+          <input type="text" id="inPlayerA" placeholder="Player name" autocomplete="off">
           <button class="btn btn-sm" id="btnAddPlayerA">Add</button>
         </div>
         <ul class="list" id="listPlayersA"></ul>
-        <small id="teamAInfo"></small>
+        <small class="team-count" id="teamAInfo"></small>
       </div>
       <div class="card">
-        <h2>Team B</h2>
+        <h2 style="margin-bottom:14px">Team B</h2>
         <div class="form-row">
           <label for="inTeamBName">Team name</label>
           <input type="text" id="inTeamBName" placeholder="Team B" autocomplete="off">
         </div>
-        <div class="row" style="margin-bottom:8px">
-          <input type="text" id="inPlayerB" placeholder="Player name" class="grow" autocomplete="off" style="flex:1">
+        <div class="player-input-row">
+          <input type="text" id="inPlayerB" placeholder="Player name" autocomplete="off">
           <button class="btn btn-sm" id="btnAddPlayerB">Add</button>
         </div>
         <ul class="list" id="listPlayersB"></ul>
-        <small id="teamBInfo"></small>
+        <small class="team-count" id="teamBInfo"></small>
       </div>
       <div class="row">
         <button class="btn btn-ghost grow" data-next="0">← Back</button>
@@ -405,12 +711,11 @@ td.num,th.num{text-align:right}
     <!-- Step 3: rules -->
     <div class="step-panel hidden" data-step="2">
       <div class="card">
-        <h2>Custom Match Rules</h2>
-        <h3 style="margin-top:12px">Extras</h3>
+        <h2 style="margin-bottom:6px">Custom Match Rules</h2>
         <div id="rulesExtras"></div>
       </div>
       <div class="card">
-        <h3>Advanced Rules</h3>
+        <h3 style="margin-bottom:10px">Advanced Rules</h3>
         <div id="rulesAdvanced"></div>
       </div>
       <div class="row">
@@ -424,14 +729,14 @@ td.num,th.num{text-align:right}
       <div class="card">
         <h2>Toss</h2>
         <div class="coin-wrap"><div class="coin" id="coin">🏏</div></div>
-        <p class="center small" id="tossResultText">Choose Heads or Tails, then flip the coin.</p>
+        <p class="center small" id="tossResultText" style="margin-bottom:14px">Choose Heads or Tails, then flip the coin.</p>
         <div class="seg" style="margin-bottom:10px">
           <button class="seg-btn active" data-call="heads" id="callHeads">HEADS</button>
           <button class="seg-btn" data-call="tails" id="callTails">TAILS</button>
         </div>
-        <button class="btn btn-primary btn-block" id="btnFlipCoin" style="margin-bottom:14px">🪙 Flip Coin</button>
+        <button class="btn btn-primary btn-block" id="btnFlipCoin" style="margin-bottom:16px">🪙 Flip Coin</button>
         <div class="divider"></div>
-        <h3>Or set it manually</h3>
+        <h3 style="margin-bottom:10px">Or set it manually</h3>
         <div class="form-row">
           <label for="selTossWinner">Toss winner</label>
           <select id="selTossWinner"></select>
@@ -443,7 +748,7 @@ td.num,th.num{text-align:right}
             <button class="seg-btn" data-decision="bowl" id="decBowl">Bowl first</button>
           </div>
         </div>
-        <div class="card tight" id="tossSummary" style="background:#0f1a2e"></div>
+        <div class="card tight" id="tossSummary" style="background:rgba(255,255,255,.035);margin-bottom:0"></div>
       </div>
       <div class="row">
         <button class="btn btn-ghost grow" data-next="2">← Back</button>
@@ -454,12 +759,12 @@ td.num,th.num{text-align:right}
     <!-- Step 5: confirm -->
     <div class="step-panel hidden" data-step="4">
       <div class="card">
-        <h2>Ready to start</h2>
+        <h2 style="margin-bottom:14px">Ready to Start</h2>
         <div id="confirmSummary"></div>
       </div>
       <div class="row">
         <button class="btn btn-ghost grow" data-next="3">← Back</button>
-        <button class="btn btn-primary grow" id="btnStartMatch">🏏 Start Match</button>
+        <button class="btn btn-primary btn-lg grow" id="btnStartMatch">🏏 Start Match</button>
       </div>
     </div>
   </section>
@@ -468,18 +773,18 @@ td.num,th.num{text-align:right}
   <section id="screen-live" class="screen">
     <div class="scoreboard" id="liveScoreboard"></div>
     <div id="liveSetupWarning"></div>
+    <div class="card" id="scoringCard"></div>
+    <div class="card" id="overCard"></div>
+    <div class="card" id="liveControls"></div>
     <div class="card" id="battingCard"></div>
     <div class="card" id="bowlingCard"></div>
-    <div class="card" id="overCard"></div>
-    <div class="card" id="scoringCard"></div>
-    <div class="card" id="liveControls"></div>
   </section>
 
   <!-- ============ SCORECARD ============ -->
   <section id="screen-scorecard" class="screen">
     <header class="app-header">
       <button class="icon-btn" id="btnBackFromScorecard" title="Back">←</button>
-      <div class="grow"><h1 style="font-size:17px;margin:0">Scorecard</h1></div>
+      <div class="grow"><h1>Scorecard</h1></div>
       <button class="btn btn-sm btn-ghost" id="btnScorecardPDF">⬇ PDF</button>
     </header>
     <div id="scorecardBody"></div>
@@ -489,7 +794,7 @@ td.num,th.num{text-align:right}
   <section id="screen-summary" class="screen">
     <header class="app-header">
       <button class="icon-btn" id="btnBackFromSummary" title="Home">←</button>
-      <div class="grow"><h1 style="font-size:17px;margin:0">Match Result</h1></div>
+      <div class="grow"><h1>Match Result</h1></div>
     </header>
     <div id="summaryBody"></div>
   </section>
@@ -498,7 +803,7 @@ td.num,th.num{text-align:right}
   <section id="screen-history" class="screen">
     <header class="app-header">
       <button class="icon-btn" id="btnBackFromHistory" title="Back">←</button>
-      <div class="grow"><h1 style="font-size:17px;margin:0">Match History</h1></div>
+      <div class="grow"><h1>Match History</h1></div>
       <button class="btn btn-sm btn-danger" id="btnClearHistory">Clear</button>
     </header>
     <div id="historyBody"></div>
@@ -518,6 +823,10 @@ td.num,th.num{text-align:right}
 /* ============================================================================
    GULLY CRICKET SCOREKEEPER
    Single-file app · HTML5 + CSS3 + Vanilla JS (ES6+) · LocalStorage · jsPDF (optional)
+
+   NOTE: All cricket scoring logic, data structures, storage keys and business
+   rules below are UNCHANGED. Only presentation markup (HTML strings) and CSS
+   have been redesigned.
    ============================================================================ */
 (function () {
 'use strict';
@@ -582,17 +891,15 @@ function toast(msg) {
   if (!el) {
     el = document.createElement('div');
     el.id = 'gcs-toast';
-    el.style.cssText = 'position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:999;' +
-      'background:#1c2c4a;color:#eef4ff;border:1px solid #22c55e;padding:11px 18px;border-radius:12px;' +
-      'font-size:13.5px;font-weight:600;box-shadow:0 8px 30px rgba(0,0,0,.6);max-width:88vw;text-align:center;' +
-      'transition:opacity .25s, transform .25s;opacity:0;pointer-events:none';
     document.body.appendChild(el);
   }
   el.textContent = msg;
-  el.style.opacity = '1';
-  el.style.transform = 'translateX(-50%) translateY(0)';
+  // restart animation
+  el.classList.remove('show');
+  void el.offsetWidth;
+  el.classList.add('show');
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => { el.style.opacity = '0'; }, 2200);
+  toastTimer = setTimeout(() => { el.classList.remove('show'); }, 2200);
 }
 
 /* ============================ NAVIGATION ============================ */
@@ -629,7 +936,7 @@ function closeModal() {
 function confirmModal(title, msg, onYes, yesLabel, danger) {
   openModal({
     title: title,
-    body: '<p class="muted" style="font-size:14px">' + esc(msg) + '</p>',
+    body: '<p class="muted" style="font-size:14px;line-height:1.6">' + esc(msg) + '</p>',
     actions: [
       { label: 'Cancel', cls: 'btn-ghost', onClick: closeModal },
       { label: yesLabel || 'Confirm', cls: danger === false ? 'btn-primary' : 'btn-danger', onClick: () => { closeModal(); onYes(); } }
@@ -1152,11 +1459,14 @@ function renderHome() {
       scoreLine = teamName(m, inn.battingTeamId) + ' ' + E.runs + '/' + E.wickets + ' (' + oversStr(E.legalBalls) + '/' + (inn.overs || m.overs) + ')';
     }
     resumeEl.innerHTML =
-      '<div class="card" style="border-color:#22c55e">' +
-        '<div class="card-title"><h2>Match in progress</h2><span class="pill green">LIVE</span></div>' +
-        '<div style="font-size:15px;font-weight:700;margin-bottom:2px">' + esc(teamName(m, 'A')) + ' vs ' + esc(teamName(m, 'B')) + '</div>' +
-        '<div class="small" style="margin-bottom:10px">' + esc(fmtDate(m.date)) + (m.venue ? ' · ' + esc(m.venue) : '') + '</div>' +
-        '<div style="font-size:16px;font-weight:800;color:#7ff0a6;margin-bottom:10px">' + esc(scoreLine) + '</div>' +
+      '<div class="card resume-card">' +
+        '<div class="card-title" style="margin-bottom:6px">' +
+          '<h2>Match in Progress</h2>' +
+          '<span class="pill green">● LIVE</span>' +
+        '</div>' +
+        '<div style="font-size:15px;font-weight:800;letter-spacing:-.2px">' + esc(teamName(m, 'A')) + ' <span class="muted" style="font-weight:600;font-size:12px">vs</span> ' + esc(teamName(m, 'B')) + '</div>' +
+        '<div class="small" style="margin-top:3px">' + esc(fmtDate(m.date)) + (m.venue ? ' · ' + esc(m.venue) : '') + '</div>' +
+        '<div class="resume-score">' + esc(scoreLine) + '</div>' +
         '<div class="row"><button class="btn btn-primary grow" id="btnResumeMatch">▶ Resume Match</button>' +
         '<button class="btn btn-ghost btn-sm" id="btnDeleteLive">Delete</button></div>' +
       '</div>';
@@ -1192,19 +1502,20 @@ function historyCardHTML(m, compact) {
     ? '<span class="pill green">Completed</span>'
     : '<span class="pill orange">In progress</span>';
   const result = m.result && m.result.text ? esc(m.result.text) : '—';
-  return '<div class="list" style="display:block;padding:12px" data-match="' + m.id + '">' +
-    '<div class="row between" style="margin-bottom:6px">' +
-      '<div style="font-weight:700;font-size:14px">' + esc(teamName(m, 'A')) + ' vs ' + esc(teamName(m, 'B')) + '</div>' +
+  const line1 = s1 ? '<div class="hs"><span>' + esc(teamName(m, i1.battingTeamId)) + '</span><b>' + i1.result.runs + '/' + i1.result.wickets + '</b></div>' : '';
+  const line2 = s2 ? '<div class="hs"><span>' + esc(teamName(m, i2.battingTeamId)) + '</span><b>' + i2.result.runs + '/' + i2.result.wickets + '</b></div>' : '';
+  return '<div class="hist-card" data-match="' + m.id + '">' +
+    '<div class="hist-top">' +
+      '<div class="hist-teams">' + esc(teamName(m, 'A')) + '<span>vs</span>' + esc(teamName(m, 'B')) + '</div>' +
       statusPill +
     '</div>' +
-    '<div class="small" style="margin-bottom:6px">' + esc(fmtDate(m.date)) + (m.venue ? ' · ' + esc(m.venue) : '') + ' · ' + m.overs + ' ov</div>' +
-    (s1 ? '<div class="small">' + esc(s1) + '</div>' : '') +
-    (s2 ? '<div class="small">' + esc(s2) + '</div>' : '') +
-    '<div style="margin-top:8px;font-weight:700;color:#7ff0a6;font-size:13px">' + result + '</div>' +
-    '<div class="row" style="margin-top:10px">' +
-      '<button class="btn btn-sm btn-ghost" data-act="open">Open</button>' +
-      '<button class="btn btn-sm btn-ghost" data-act="pdf">PDF</button>' +
-      '<button class="btn btn-sm btn-danger" data-act="del">Delete</button>' +
+    '<div class="hist-meta">' + esc(fmtDate(m.date)) + (m.venue ? ' · ' + esc(m.venue) : '') + ' · ' + m.overs + ' ov</div>' +
+    '<div class="hist-scores">' + line1 + line2 + '</div>' +
+    '<div class="hist-result">' + result + '</div>' +
+    '<div class="hist-actions">' +
+      '<button class="btn btn-xs btn-ghost" data-act="open">Open</button>' +
+      '<button class="btn btn-xs btn-ghost" data-act="pdf">PDF</button>' +
+      '<button class="btn btn-xs btn-danger" data-act="del">Delete</button>' +
     '</div>' +
   '</div>';
 }
@@ -1311,7 +1622,7 @@ function renderTeamPlayers(teamKey) {
   const list = $('#listPlayers' + teamKey);
   const team = m.teams[teamKey];
   if (!team.players.length) {
-    list.innerHTML = '<div class="empty" style="padding:10px">No players added yet</div>';
+    list.innerHTML = '<div class="empty" style="padding:14px">No players added yet</div>';
   } else {
     list.innerHTML = team.players.map((p, i) =>
       '<li><span class="pill">' + (i + 1) + '</span>' +
@@ -1380,10 +1691,10 @@ function renderRulesUI() {
   let html = '';
   extraDefs.forEach(d => {
     html += '<div class="switch">' +
-      '<div><div class="sw-label">' + d.label + '</div><div class="sw-sub">' + d.sub + '</div></div>' +
-      '<div class="row" style="gap:8px;flex:0 0 auto">' +
+      '<div class="sw-text"><div class="sw-label">' + d.label + '</div><div class="sw-sub">' + d.sub + '</div></div>' +
+      '<div class="sw-ctl">' +
         (d.numKey
-          ? '<input type="number" min="0" max="10" value="' + r[d.numKey] + '" data-rule-num="' + d.numKey + '" style="width:64px;min-height:38px;padding:6px 8px;font-size:14px">'
+          ? '<input type="number" min="0" max="10" value="' + r[d.numKey] + '" data-rule-num="' + d.numKey + '">'
           : '') +
         '<label class="tgl"><input type="checkbox" data-rule="' + d.key + '"' + (r[d.key] ? ' checked' : '') + '>' +
         '<span class="track"></span><span class="knob"></span></label>' +
@@ -1391,28 +1702,28 @@ function renderRulesUI() {
   });
 
   html += '<div class="switch">' +
-    '<div><div class="sw-label">Overthrows</div><div class="sw-sub">Allow overthrow runs to be added</div></div>' +
-    '<label class="tgl"><input type="checkbox" data-rule="overthrowsEnabled"' + (r.overthrowsEnabled ? ' checked' : '') + '><span class="track"></span><span class="knob"></span></label>' +
+    '<div class="sw-text"><div class="sw-label">Overthrows</div><div class="sw-sub">Allow overthrow runs to be added</div></div>' +
+    '<div class="sw-ctl"><label class="tgl"><input type="checkbox" data-rule="overthrowsEnabled"' + (r.overthrowsEnabled ? ' checked' : '') + '><span class="track"></span><span class="knob"></span></label></div>' +
   '</div>';
 
   html += '<div class="switch">' +
-    '<div><div class="sw-label">Wides count as team extras</div><div class="sw-sub">When off, wide runs are not added to the total</div></div>' +
-    '<label class="tgl"><input type="checkbox" data-rule="wideCountsAsExtras"' + (r.wideCountsAsExtras ? ' checked' : '') + '><span class="track"></span><span class="knob"></span></label>' +
+    '<div class="sw-text"><div class="sw-label">Wides count as team extras</div><div class="sw-sub">When off, wide runs are not added to the total</div></div>' +
+    '<div class="sw-ctl"><label class="tgl"><input type="checkbox" data-rule="wideCountsAsExtras"' + (r.wideCountsAsExtras ? ' checked' : '') + '><span class="track"></span><span class="knob"></span></label></div>' +
   '</div>';
 
   html += '<div class="switch">' +
-    '<div><div class="sw-label">Byes count as team extras</div><div class="sw-sub">When off, bye runs are not added</div></div>' +
-    '<label class="tgl"><input type="checkbox" data-rule="byeCountsAsExtras"' + (r.byeCountsAsExtras ? ' checked' : '') + '><span class="track"></span><span class="knob"></span></label>' +
+    '<div class="sw-text"><div class="sw-label">Byes count as team extras</div><div class="sw-sub">When off, bye runs are not added</div></div>' +
+    '<div class="sw-ctl"><label class="tgl"><input type="checkbox" data-rule="byeCountsAsExtras"' + (r.byeCountsAsExtras ? ' checked' : '') + '><span class="track"></span><span class="knob"></span></label></div>' +
   '</div>';
 
   html += '<div class="switch">' +
-    '<div><div class="sw-label">Leg byes count as team extras</div><div class="sw-sub">When off, leg-bye runs are not added</div></div>' +
-    '<label class="tgl"><input type="checkbox" data-rule="legByeCountsAsExtras"' + (r.legByeCountsAsExtras ? ' checked' : '') + '><span class="track"></span><span class="knob"></span></label>' +
+    '<div class="sw-text"><div class="sw-label">Leg byes count as team extras</div><div class="sw-sub">When off, leg-bye runs are not added</div></div>' +
+    '<div class="sw-ctl"><label class="tgl"><input type="checkbox" data-rule="legByeCountsAsExtras"' + (r.legByeCountsAsExtras ? ' checked' : '') + '><span class="track"></span><span class="knob"></span></label></div>' +
   '</div>';
 
   html += '<div class="switch">' +
-    '<div><div class="sw-label">Overthrows count as team extras</div><div class="sw-sub">When off, overthrow runs are not added</div></div>' +
-    '<label class="tgl"><input type="checkbox" data-rule="overthrowCountsAsExtras"' + (r.overthrowCountsAsExtras ? ' checked' : '') + '><span class="track"></span><span class="knob"></span></label>' +
+    '<div class="sw-text"><div class="sw-label">Overthrows count as team extras</div><div class="sw-sub">When off, overthrow runs are not added</div></div>' +
+    '<div class="sw-ctl"><label class="tgl"><input type="checkbox" data-rule="overthrowCountsAsExtras"' + (r.overthrowCountsAsExtras ? ' checked' : '') + '><span class="track"></span><span class="knob"></span></label></div>' +
   '</div>';
 
   $('#rulesExtras').innerHTML = html;
@@ -1427,8 +1738,8 @@ function renderRulesUI() {
   ];
   advDefs.forEach(d => {
     adv += '<div class="switch">' +
-      '<div><div class="sw-label">' + d.label + '</div><div class="sw-sub">' + d.sub + '</div></div>' +
-      '<label class="tgl"><input type="checkbox" data-rule="' + d.key + '"' + (r[d.key] ? ' checked' : '') + '><span class="track"></span><span class="knob"></span></label>' +
+      '<div class="sw-text"><div class="sw-label">' + d.label + '</div><div class="sw-sub">' + d.sub + '</div></div>' +
+      '<div class="sw-ctl"><label class="tgl"><input type="checkbox" data-rule="' + d.key + '"' + (r[d.key] ? ' checked' : '') + '><span class="track"></span><span class="knob"></span></label></div>' +
     '</div>';
   });
   $('#rulesAdvanced').innerHTML = adv;
@@ -1469,8 +1780,8 @@ function renderTossSummary() {
   const w = teamName(m, m.toss.winnerTeamId);
   const l = teamName(m, m.toss.winnerTeamId === 'A' ? 'B' : 'A');
   const dec = m.toss.decision === 'bat' ? 'bat first' : 'bowl first';
-  el.innerHTML = '<div style="font-size:13.5px;line-height:1.6">' +
-    '🪙 <b>' + esc(w) + '</b> won the toss and chose to <b>' + dec + '</b>.<br>' +
+  el.innerHTML = '<div style="font-size:13.5px;line-height:1.7">' +
+    '🪙 <b style="color:#fff">' + esc(w) + '</b> won the toss and chose to <b style="color:var(--lime)">' + dec + '</b>.<br>' +
     '<span class="small">' + esc(l) + ' will ' + (m.toss.decision === 'bat' ? 'bowl first' : 'bat first') + '.</span>' +
   '</div>';
 }
@@ -1489,21 +1800,21 @@ function renderConfirmSummary() {
   const tA = m.teams.A, tB = m.teams.B;
   const tossText = m.toss && m.toss.winnerTeamId
     ? teamName(m, m.toss.winnerTeamId) + ' won the toss and will ' + (m.toss.decision === 'bat' ? 'bat' : 'bowl') + ' first'
-    : '<span style="color:#ff9d9d">Toss not set</span>';
+    : '<span style="color:#FFA3A3">Toss not set</span>';
   const battingFirst = m.toss && m.toss.winnerTeamId
     ? (m.toss.decision === 'bat' ? m.toss.winnerTeamId : (m.toss.winnerTeamId === 'A' ? 'B' : 'A'))
     : null;
 
   $('#confirmSummary').innerHTML =
-    '<div style="line-height:1.8;font-size:14px">' +
-      '<div><b>' + esc(m.name || (tA.name + ' vs ' + tB.name)) + '</b></div>' +
+    '<div style="line-height:1.9;font-size:14px">' +
+      '<div style="font-size:16px;font-weight:800;letter-spacing:-.2px">' + esc(m.name || (tA.name + ' vs ' + tB.name)) + '</div>' +
       '<div class="small">' + esc(fmtDate(m.date)) + (m.venue ? ' · ' + esc(m.venue) : '') + ' · ' + m.overs + ' overs</div>' +
       '<div class="divider"></div>' +
-      '<div>' + esc(tA.name) + ' — ' + tA.players.length + ' players (wicket limit ' + Math.max(1, tA.players.length - 1) + ')</div>' +
-      '<div>' + esc(tB.name) + ' — ' + tB.players.length + ' players (wicket limit ' + Math.max(1, tB.players.length - 1) + ')</div>' +
+      '<div class="row between"><span>' + esc(tA.name) + '</span><span class="pill">' + tA.players.length + ' players · W ' + Math.max(1, tA.players.length - 1) + '</span></div>' +
+      '<div class="row between" style="margin-top:6px"><span>' + esc(tB.name) + '</span><span class="pill">' + tB.players.length + ' players · W ' + Math.max(1, tB.players.length - 1) + '</span></div>' +
       '<div class="divider"></div>' +
       '<div>' + tossText + '</div>' +
-      (battingFirst ? '<div class="pill green" style="margin-top:8px">' + esc(teamName(m, battingFirst)) + ' batting first</div>' : '') +
+      (battingFirst ? '<div class="pill green" style="margin-top:10px">' + esc(teamName(m, battingFirst)) + ' batting first</div>' : '') +
     '</div>';
 }
 
@@ -1577,11 +1888,11 @@ function promptOpeners() {
   openModal({
     title: 'Innings ' + (m.currentInnings + 1) + ' — Opening line-up',
     body:
-      '<p class="small" style="margin-bottom:12px">' + esc(batTeam.name) + ' batting vs ' + esc(bowlTeam.name) + '</p>' +
+      '<p class="small" style="margin-bottom:14px">' + esc(batTeam.name) + ' batting vs ' + esc(bowlTeam.name) + '</p>' +
       '<div class="form-row"><label for="selStriker">Striker</label><select id="selStriker">' + batOpts + '</select></div>' +
       '<div class="form-row"><label for="selNonStriker">Non-striker</label><select id="selNonStriker">' + batOpts + '</select></div>' +
       '<div class="form-row"><label for="selBowler">Opening bowler</label><select id="selBowler">' + bowlOpts + '</select></div>' +
-      '<p class="small" id="openersErr" style="color:#ff9d9d"></p>',
+      '<p class="small" id="openersErr" style="color:#FFA3A3"></p>',
     actions: [{
       label: 'Start Innings',
       cls: 'btn-primary',
@@ -1641,9 +1952,9 @@ function openBowlerModal() {
   openModal({
     title: 'Select next bowler',
     body:
-      (previousBowler ? '<p class="small" style="margin-bottom:10px">Previous over: <b>' + esc(previousBowler.name) + '</b>. A bowler may not bowl consecutive overs unless the rules are overridden.</p>' : '') +
+      (previousBowler ? '<p class="small" style="margin-bottom:14px;line-height:1.6">Previous over: <b style="color:#fff">' + esc(previousBowler.name) + '</b>. A bowler may not bowl consecutive overs unless the rules are overridden.</p>' : '') +
       '<div class="form-row"><label for="selNextBowler">Bowler</label><select id="selNextBowler">' + opts + '</select></div>' +
-      '<p class="small" id="bowlerErr" style="color:#ff9d9d"></p>',
+      '<p class="small" id="bowlerErr" style="color:#FFA3A3"></p>',
     actions: [
       { label: 'Cancel', cls: 'btn-ghost', onClick: closeModal },
       { label: 'Confirm Bowler', cls: 'btn-primary', onClick: () => {
@@ -1679,7 +1990,7 @@ function changeBowlerMidOver() {
   openModal({
     title: 'Change bowler (injury / mid-over)',
     body:
-      '<p class="small" style="margin-bottom:10px">The current over will be completed by the new bowler. This affects only future deliveries.</p>' +
+      '<p class="small" style="margin-bottom:14px;line-height:1.6">The current over will be completed by the new bowler. This affects only future deliveries.</p>' +
       '<div class="form-row"><label>New bowler</label><select id="selMidBowler">' + opts + '</select></div>',
     actions: [
       { label: 'Cancel', cls: 'btn-ghost', onClick: closeModal },
@@ -1728,45 +2039,67 @@ function renderLive() {
       const rrr = ballsLeft > 0 ? (need * 6 / ballsLeft) : 0;
       chaseHTML =
         '<div class="sb-chase">' +
-          '<div>Target <b>' + target + '</b></div>' +
-          '<div>Need <b>' + (need > 0 ? need : 0) + '</b> off <b>' + Math.max(0, ballsLeft) + '</b></div>' +
-          '<div>CRR <b>' + f2(crr) + '</b></div>' +
-          '<div>RRR <b>' + (ballsLeft > 0 ? f2(rrr) : '—') + '</b></div>' +
-          '<div>Wkts left <b>' + Math.max(0, maxW - E.wickets) + '</b></div>' +
-          '<div>Balls left <b>' + Math.max(0, ballsLeft) + '</b></div>' +
+          '<div class="sb-chase-item"><span>Need</span><b>' + (need > 0 ? need : 0) + '</b></div>' +
+          '<div class="sb-chase-item"><span>Balls</span><b>' + Math.max(0, ballsLeft) + '</b></div>' +
+          '<div class="sb-chase-item"><span>CRR</span><b>' + f2(crr) + '</b></div>' +
+          '<div class="sb-chase-item"><span>RRR</span><b>' + (ballsLeft > 0 ? f2(rrr) : '—') + '</b></div>' +
         '</div>';
     }
   }
 
   const statusPill = inn.freeHit
-    ? '<span class="sb-badge orange">FREE HIT</span>'
-    : '<span class="sb-badge">Innings ' + (m.currentInnings + 1) + '</span>';
+    ? '<span class="sb-badge free">FREE HIT</span>'
+    : '<span class="sb-badge">INN ' + (m.currentInnings + 1) + '</span>';
+
+  /* at-the-crease strip (display only — uses existing computed data) */
+  const sbStriker = E.batters[E.strikerId];
+  const sbNonStriker = E.batters[E.nonStrikerId];
+  const sbBowler = E.bowlers[inn.currentBowlerId];
+  let creaseHTML = '';
+  if (sbStriker || sbNonStriker || sbBowler) {
+    creaseHTML = '<div class="sb-crease">';
+    if (sbStriker) {
+      creaseHTML += '<div class="sb-cr on"><span class="sb-dot"></span><span class="sb-nm">' + esc(sbStriker.name) + '</span><b>' + sbStriker.runs + '</b><span class="sb-bl">(' + sbStriker.balls + ')</span></div>';
+    }
+    if (sbNonStriker) {
+      creaseHTML += '<div class="sb-cr"><span class="sb-nm">' + esc(sbNonStriker.name) + '</span><b>' + sbNonStriker.runs + '</b><span class="sb-bl">(' + sbNonStriker.balls + ')</span></div>';
+    }
+    if (sbBowler) {
+      creaseHTML += '<div class="sb-cr bowl"><span class="sb-nm">' + esc(sbBowler.name) + '</span><b>' + sbBowler.wickets + '/' + sbBowler.runs + '</b></div>';
+    }
+    creaseHTML += '</div>';
+  }
 
   $('#liveScoreboard').innerHTML =
     '<div class="sb-top">' +
-      '<div>' +
-        '<div class="sb-team">' + esc(batTeam.name) + '</div>' +
-        '<div class="sb-vs">vs ' + esc(bowlTeam.name) + '</div>' +
+      '<div class="sb-team-wrap">' +
+        '<span class="sb-team">' + esc(batTeam.name) + '</span>' +
+        '<span class="sb-vs">vs ' + esc(bowlTeam.name) + '</span>' +
       '</div>' +
-      '<div style="text-align:right">' + statusPill + '</div>' +
+      statusPill +
     '</div>' +
-    '<div class="sb-score">' + E.runs + '<span class="wk">/' + E.wickets + '</span></div>' +
-    '<div class="sb-overs">Overs ' + oversStr(E.legalBalls) + ' / ' + (inn.overs || m.overs) + ' &nbsp;·&nbsp; ' +
-      Math.max(0, totalBalls - E.legalBalls) + ' balls left</div>' +
-    chaseHTML;
+    '<div class="sb-mid">' +
+      '<div class="sb-score">' + E.runs + '<span class="sb-wk">/' + E.wickets + '</span></div>' +
+      '<div class="sb-right">' +
+        '<div class="sb-overs"><b>' + oversStr(E.legalBalls) + '</b><span>/ ' + (inn.overs || m.overs) + ' ov</span></div>' +
+        '<div class="sb-crr">CRR <b>' + f2(E.legalBalls > 0 ? E.runs / (E.legalBalls / 6) : 0) + '</b></div>' +
+      '</div>' +
+    '</div>' +
+    chaseHTML +
+    creaseHTML;
 
   /* ---------- Setup warning ---------- */
   const setupEl = $('#liveSetupWarning');
   const needsSetup = !inn.strikerId || !inn.nonStrikerId;
   const needsBowler = inn.needsBowler && !needsSetup;
   if (needsSetup) {
-    setupEl.innerHTML = '<div class="card" style="border-color:#f59e0b">' +
-      '<div style="font-weight:700;margin-bottom:8px;color:#ffce7a">Opening batters & bowler required</div>' +
+    setupEl.innerHTML = '<div class="card setup-prompt">' +
+      '<div class="sp-title">⚠ Opening batters &amp; bowler required</div>' +
       '<button class="btn btn-warn btn-block" id="btnPromptOpeners">Select openers</button></div>';
     $('#btnPromptOpeners').addEventListener('click', promptOpeners);
   } else if (needsBowler) {
-    setupEl.innerHTML = '<div class="card" style="border-color:#f59e0b">' +
-      '<div style="font-weight:700;margin-bottom:8px;color:#ffce7a">Over complete — select the next bowler</div>' +
+    setupEl.innerHTML = '<div class="card setup-prompt">' +
+      '<div class="sp-title">⚠ Over complete — select the next bowler</div>' +
       '<button class="btn btn-warn btn-block" id="btnSelectBowler">Select bowler</button></div>';
     $('#btnSelectBowler').addEventListener('click', openBowlerModal);
   } else {
@@ -1778,10 +2111,10 @@ function renderLive() {
   const nBat = E.batters[E.nonStrikerId];
   function batRow(b, isStriker) {
     if (!b) return '';
-    return '<tr>' +
-      '<td><span class="bat-name">' + esc(b.name) + (isStriker ? ' <span class="striker-star">*</span>' : '') + '</span>' +
+    return '<tr class="' + (isStriker ? 'row-active' : '') + '">' +
+      '<td><span class="bat-name">' + esc(b.name) + (isStriker ? ' <span class="striker-star">●</span>' : '') + '</span>' +
         (b.isRetired ? '<span class="bat-sub">retired</span>' : '') + '</td>' +
-      '<td class="num" style="font-weight:800">' + b.runs + '</td>' +
+      '<td class="num" style="font-weight:800;color:#fff">' + b.runs + '</td>' +
       '<td class="num">' + b.balls + '</td>' +
       '<td class="num">' + b.fours + '</td>' +
       '<td class="num">' + b.sixes + '</td>' +
@@ -1789,7 +2122,7 @@ function renderLive() {
     '</tr>';
   }
   $('#battingCard').innerHTML =
-    '<div class="card-title"><h2>Batting</h2><span class="small">' + esc(batTeam.name) + '</span></div>' +
+    '<div class="card-title"><h2>Batting</h2><span class="pill green">' + esc(batTeam.name) + '</span></div>' +
     '<div class="tbl-scroll"><table><thead><tr>' +
       '<th>Batter</th><th class="num">R</th><th class="num">B</th><th class="num">4s</th><th class="num">6s</th><th class="num">SR</th>' +
     '</tr></thead><tbody>' +
@@ -1797,36 +2130,40 @@ function renderLive() {
     '</tbody></table></div>' +
     '<div class="divider"></div>' +
     '<div class="row between small">' +
-      '<span>Extras <b>' + E.extras.total + '</b> (wd ' + E.extras.wide + ', nb ' + E.extras.noball + ', b ' + E.extras.bye + ', lb ' + E.extras.legbye + ', ot ' + E.extras.overthrow + ')</span>' +
-      '<span>CRR <b>' + f2(E.legalBalls > 0 ? E.runs / (E.legalBalls / 6) : 0) + '</b></span>' +
+      '<span>Extras <b style="color:#fff">' + E.extras.total + '</b> <span class="muted">(wd ' + E.extras.wide + ', nb ' + E.extras.noball + ', b ' + E.extras.bye + ', lb ' + E.extras.legbye + ', ot ' + E.extras.overthrow + ')</span></span>' +
+      '<span>CRR <b style="color:var(--lime)">' + f2(E.legalBalls > 0 ? E.runs / (E.legalBalls / 6) : 0) + '</b></span>' +
     '</div>';
 
   /* ---------- Bowling card ---------- */
-  const cb = E.bowlers[inn.currentBowlerId];
-  let bowlRowHTML = '';
-  if (cb) {
-    bowlRowHTML = '<tr>' +
-      '<td><span class="bat-name">' + esc(cb.name) + '</span><span class="bat-sub">current</span></td>' +
-      '<td class="num">' + oversStr(cb.balls) + '</td>' +
-      '<td class="num">' + cb.maidens + '</td>' +
-      '<td class="num">' + cb.runs + '</td>' +
-      '<td class="num" style="font-weight:800">' + cb.wickets + '</td>' +
-      '<td class="num">' + f2(econ(cb.runs, cb.balls)) + '</td>' +
-    '</tr>';
+  let bowlRowsHTML = '';
+  if (E.bowlerOrder.length) {
+    E.bowlerOrder.forEach(pid => {
+      const b = E.bowlers[pid];
+      const isCurrent = pid === inn.currentBowlerId;
+      bowlRowsHTML += '<tr class="' + (isCurrent ? 'row-active' : '') + '">' +
+        '<td><span class="bat-name">' + esc(b.name) + (isCurrent ? ' <span class="striker-star">●</span>' : '') + '</span>' +
+          (isCurrent ? '<span class="bat-sub">current</span>' : '') + '</td>' +
+        '<td class="num">' + oversStr(b.balls) + '</td>' +
+        '<td class="num">' + b.maidens + '</td>' +
+        '<td class="num">' + b.runs + '</td>' +
+        '<td class="num" style="font-weight:800;color:#fff">' + b.wickets + '</td>' +
+        '<td class="num">' + f2(econ(b.runs, b.balls)) + '</td>' +
+      '</tr>';
+    });
   } else if (inn.currentBowlerId) {
     const p = playerById(m, inn.currentBowlerId);
-    bowlRowHTML = '<tr>' +
+    bowlRowsHTML = '<tr class="row-active">' +
       '<td><span class="bat-name">' + esc(p ? p.name : 'Bowler') + '</span><span class="bat-sub">current</span></td>' +
-      '<td class="num">0.0</td><td class="num">0</td><td class="num">0</td><td class="num">0</td><td class="num">0.00</td>' +
+      '<td class="num">0.0</td><td class="num">0</td><td class="num">0</td><td class="num" style="font-weight:800;color:#fff">0</td><td class="num">0.00</td>' +
     '</tr>';
   } else {
-    bowlRowHTML = '<tr><td colspan="6" class="muted">No bowler selected</td></tr>';
+    bowlRowsHTML = '<tr><td colspan="6" class="muted">No bowler selected</td></tr>';
   }
   $('#bowlingCard').innerHTML =
-    '<div class="card-title"><h2>Bowling</h2><span class="small">' + esc(bowlTeam.name) + '</span></div>' +
+    '<div class="card-title"><h2>Bowling</h2><span class="pill orange">' + esc(bowlTeam.name) + '</span></div>' +
     '<div class="tbl-scroll"><table><thead><tr>' +
       '<th>Bowler</th><th class="num">O</th><th class="num">M</th><th class="num">R</th><th class="num">W</th><th class="num">Econ</th>' +
-    '</tr></thead><tbody>' + bowlRowHTML + '</tbody></table></div>';
+    '</tr></thead><tbody>' + bowlRowsHTML + '</tbody></table></div>';
 
   /* ---------- Current over ---------- */
   let ballsHTML = '';
@@ -1844,23 +2181,23 @@ function renderLive() {
 
   /* ---------- Scoring pad ---------- */
   const disabled = needsSetup || needsBowler || inn.status !== 'live';
-  let padHTML = '<div class="pad">';
+  let padHTML = '<div class="pad-runs">';
   [0, 1, 2, 3, 4, 5, 6].forEach(v => {
-    const cls = v === 4 ? 'sbtn boundary4' : (v === 6 ? 'sbtn boundary6' : 'sbtn');
+    const cls = v === 4 ? 'run-btn is-four' : (v === 6 ? 'run-btn is-six' : 'run-btn');
     padHTML += '<button class="' + cls + '" data-run="' + v + '"' + (disabled ? ' disabled' : '') + '>' + v + '</button>';
   });
+  padHTML += '<button class="run-btn is-wicket" data-extra="wicket"' + (disabled ? ' disabled' : '') + '>OUT</button>';
   padHTML += '</div><div class="pad-extras">';
-  if (rules.wideEnabled) padHTML += '<button class="sbtn ext" data-extra="wide"' + (disabled ? ' disabled' : '') + '>WIDE</button>';
-  padHTML += '<button class="sbtn ext" data-extra="noball"' + (disabled ? ' disabled' : '') + '>NO BALL</button>';
-  if (rules.byesEnabled) padHTML += '<button class="sbtn ext" data-extra="bye"' + (disabled ? ' disabled' : '') + '>BYE</button>';
-  if (rules.legByesEnabled) padHTML += '<button class="sbtn ext" data-extra="legbye"' + (disabled ? ' disabled' : '') + '>LEG BYE</button>';
-  if (rules.overthrowsEnabled) padHTML += '<button class="sbtn ext" data-extra="overthrow"' + (disabled ? ' disabled' : '') + '>OVERTHROW</button>';
-  padHTML += '<button class="sbtn wicket" data-extra="wicket"' + (disabled ? ' disabled' : '') + '>WICKET</button>';
+  if (rules.wideEnabled) padHTML += '<button class="ext-btn" data-extra="wide"' + (disabled ? ' disabled' : '') + '>WIDE</button>';
+  padHTML += '<button class="ext-btn" data-extra="noball"' + (disabled ? ' disabled' : '') + '>NO BALL</button>';
+  if (rules.byesEnabled) padHTML += '<button class="ext-btn" data-extra="bye"' + (disabled ? ' disabled' : '') + '>BYE</button>';
+  if (rules.legByesEnabled) padHTML += '<button class="ext-btn" data-extra="legbye"' + (disabled ? ' disabled' : '') + '>LEG BYE</button>';
+  if (rules.overthrowsEnabled) padHTML += '<button class="ext-btn" data-extra="overthrow"' + (disabled ? ' disabled' : '') + '>OVERTHROW</button>';
   padHTML += '</div>';
 
   $('#scoringCard').innerHTML =
     '<div class="card-title"><h2>Score</h2>' +
-      '<span class="small">' + (E.freeHit ? '<span class="pill orange">FREE HIT</span>' : '') + '</span></div>' +
+      '<span>' + (E.freeHit ? '<span class="pill orange">FREE HIT</span>' : '') + '</span></div>' +
     padHTML;
 
   $$('#scoringCard [data-run]').forEach(b => b.addEventListener('click', () => {
@@ -1881,23 +2218,17 @@ function renderLive() {
   const hasEvents = inn.events.length > 0;
   $('#liveControls').innerHTML =
     '<div class="card-title"><h2>Match Controls</h2></div>' +
-    '<div class="row" style="gap:8px">' +
-      '<button class="btn btn-sm btn-ghost grow" id="btnUndo"' + (hasEvents ? '' : ' disabled') + '>↶ Undo</button>' +
-      '<button class="btn btn-sm btn-ghost grow" id="btnEditLast"' + (hasEvents ? '' : ' disabled') + '>✎ Edit Last</button>' +
-      '<button class="btn btn-sm btn-ghost grow" id="btnBallHistory">📋 History</button>' +
-    '</div>' +
-    '<div class="row" style="gap:8px;margin-top:8px">' +
-      '<button class="btn btn-sm btn-ghost grow" id="btnScorecard">📊 Scorecard</button>' +
-      '<button class="btn btn-sm btn-ghost grow" id="btnSwapStrike">⇄ Swap Strike</button>' +
-      '<button class="btn btn-sm btn-ghost grow" id="btnChangeBowler">🎯 Bowler</button>' +
-    '</div>' +
-    '<div class="row" style="gap:8px;margin-top:8px">' +
-      '<button class="btn btn-sm btn-ghost grow" id="btnRetire">🏃 Retire</button>' +
-      '<button class="btn btn-sm btn-warn grow" id="btnEndInnings">End Innings</button>' +
-    '</div>' +
-    '<div class="row" style="gap:8px;margin-top:8px">' +
-      '<button class="btn btn-sm btn-ghost grow" id="btnGoHome">🏠 Home</button>' +
-      '<button class="btn btn-sm btn-ghost grow" id="btnSaveNow">💾 Save</button>' +
+    '<div class="ctrl-grid">' +
+      '<button class="ctrl" id="btnUndo"' + (hasEvents ? '' : ' disabled') + '><span>↶</span>Undo</button>' +
+      '<button class="ctrl" id="btnEditLast"' + (hasEvents ? '' : ' disabled') + '><span>✎</span>Edit</button>' +
+      '<button class="ctrl" id="btnBallHistory"><span>≡</span>Balls</button>' +
+      '<button class="ctrl" id="btnScorecard"><span>▤</span>Card</button>' +
+      '<button class="ctrl" id="btnSwapStrike"><span>⇄</span>Swap</button>' +
+      '<button class="ctrl" id="btnChangeBowler"><span>◎</span>Bowler</button>' +
+      '<button class="ctrl" id="btnRetire"><span>⤺</span>Retire</button>' +
+      '<button class="ctrl warn" id="btnEndInnings"><span>■</span>End</button>' +
+      '<button class="ctrl" id="btnGoHome"><span>⌂</span>Home</button>' +
+      '<button class="ctrl" id="btnSaveNow"><span>✓</span>Save</button>' +
     '</div>';
 
   const bind = (id, fn) => { const el = document.getElementById(id); if (el) el.addEventListener('click', fn); };
@@ -1964,7 +2295,7 @@ function openExtraModal(type) {
     openModal({
       title: 'Wide',
       body:
-        '<p class="small" style="margin-bottom:12px">Wide penalty: <b>' + pen + ' run' + (pen === 1 ? '' : 's') + '</b>. Add any runs the batters ran (or overthrows).</p>' +
+        '<p class="small" style="margin-bottom:14px;line-height:1.6">Wide penalty: <b style="color:#FFD79A">' + pen + ' run' + (pen === 1 ? '' : 's') + '</b>. Add any runs the batters ran (or overthrows).</p>' +
         '<div class="form-row"><label for="inWideRuns">Additional runs run by batters</label>' +
           '<input type="number" id="inWideRuns" value="0" min="0" max="6" inputmode="numeric"></div>' +
         (otAllowed ? '<div class="form-row"><label for="inWideOt">Overthrow runs</label>' +
@@ -1994,9 +2325,9 @@ function openExtraModal(type) {
     openModal({
       title: 'No Ball',
       body:
-        '<p class="small" style="margin-bottom:12px">' +
+        '<p class="small" style="margin-bottom:14px;line-height:1.6">' +
         (rules.noBallEnabled
-          ? 'No-ball penalty: <b>' + pen + ' run' + (pen === 1 ? '' : 's') + '</b>. '
+          ? 'No-ball penalty: <b style="color:#FFD79A">' + pen + ' run' + (pen === 1 ? '' : 's') + '</b>. '
           : 'No-ball penalty is <b>disabled</b> — no extra run is added. ') +
         'Enter the runs the batter scored off the bat.</p>' +
         '<div class="form-row"><label for="inNbBat">Batter runs off the bat</label>' +
@@ -2028,7 +2359,7 @@ function openExtraModal(type) {
     openModal({
       title: label,
       body:
-        '<p class="small" style="margin-bottom:12px">These runs are not charged to the bowler.</p>' +
+        '<p class="small" style="margin-bottom:14px;line-height:1.6">These runs are not charged to the bowler.</p>' +
         '<div class="form-row"><label for="inExtraRuns">' + label + ' runs</label>' +
           '<input type="number" id="inExtraRuns" value="1" min="0" max="6" inputmode="numeric"></div>' +
         (otAllowed ? '<div class="form-row"><label for="inExtraOt">Overthrow runs</label>' +
@@ -2057,7 +2388,7 @@ function openExtraModal(type) {
     openModal({
       title: 'Overthrow',
       body:
-        '<p class="small" style="margin-bottom:12px">Runs off the bat plus the overthrow runs.</p>' +
+        '<p class="small" style="margin-bottom:14px;line-height:1.6">Runs off the bat plus the overthrow runs.</p>' +
         '<div class="form-row"><label for="inOtBat">Runs off the bat</label>' +
           '<input type="number" id="inOtBat" value="0" min="0" max="6" inputmode="numeric"></div>' +
         '<div class="form-row"><label for="inOtOt">Overthrow runs</label>' +
@@ -2110,7 +2441,7 @@ function openWicketModal(preselect) {
   let which = 'striker';
 
   const bodyHTML =
-    (freeHit ? '<p class="pill orange" style="margin-bottom:10px">FREE HIT — only run out is possible</p>' : '') +
+    (freeHit ? '<p class="pill orange" style="margin-bottom:12px">FREE HIT — only run out is possible</p>' : '') +
 
     '<div class="form-row"><label for="selWkType">Dismissal type</label>' +
       '<select id="selWkType">' + allowedTypes.map(d => '<option value="' + d.v + '">' + d.label + '</option>').join('') + '</select></div>' +
@@ -2118,22 +2449,22 @@ function openWicketModal(preselect) {
     '<div class="form-row" id="wkBatterRow">' +
       '<label style="margin-bottom:8px">Who is out?</label>' +
       '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">' +
-        '<button type="button" class="opt-btn active" data-wkb="striker" id="wkbS" style="text-align:left;padding:10px 12px">' +
-          '<div style="font-size:15.5px;font-weight:800;line-height:1.25;word-break:break-word">' + esc(striker.name) + '</div>' +
-          '<div style="font-size:11px;margin-top:5px;opacity:.8;letter-spacing:.3px">Striker · ' + striker.runs + ' (' + striker.balls + ')</div>' +
+        '<button type="button" class="opt-btn active" data-wkb="striker" id="wkbS">' +
+          '<div style="font-size:15px;font-weight:800;line-height:1.25;word-break:break-word">' + esc(striker.name) + '</div>' +
+          '<div style="font-size:11px;margin-top:5px;opacity:.82;letter-spacing:.3px;font-weight:600">Striker · ' + striker.runs + ' (' + striker.balls + ')</div>' +
         '</button>' +
-        '<button type="button" class="opt-btn" data-wkb="nonstriker" id="wkbN" style="text-align:left;padding:10px 12px">' +
-          '<div style="font-size:15.5px;font-weight:800;line-height:1.25;word-break:break-word">' + esc(nonStriker.name) + '</div>' +
-          '<div style="font-size:11px;margin-top:5px;opacity:.8;letter-spacing:.3px">Non-striker · ' + nonStriker.runs + ' (' + nonStriker.balls + ')</div>' +
+        '<button type="button" class="opt-btn" data-wkb="nonstriker" id="wkbN">' +
+          '<div style="font-size:15px;font-weight:800;line-height:1.25;word-break:break-word">' + esc(nonStriker.name) + '</div>' +
+          '<div style="font-size:11px;margin-top:5px;opacity:.82;letter-spacing:.3px;font-weight:600">Non-striker · ' + nonStriker.runs + ' (' + nonStriker.balls + ')</div>' +
         '</button>' +
       '</div>' +
-      '<div class="small" id="wkBatterHint" style="margin-top:8px;color:#93a3c0"></div>' +
+      '<div class="small" id="wkBatterHint" style="margin-top:10px;color:#9BB0D2;line-height:1.5"></div>' +
     '</div>' +
 
-    '<div class="form-row" id="wkRunsRow" style="display:none;background:#1a2a45;border:1px solid #f59e0b;border-radius:10px;padding:12px">' +
-      '<label for="inWkRuns" style="color:#ffce7a">Runs completed before the run out</label>' +
-      '<input type="number" id="inWkRuns" value="0" min="0" max="6" inputmode="numeric" style="font-size:22px;font-weight:800;text-align:center">' +
-      '<div class="small" style="margin-top:8px;color:#ffce7a;line-height:1.5">' +
+    '<div class="form-row" id="wkRunsRow" style="display:none;background:rgba(245,165,36,.10);border:1px solid rgba(245,165,36,.35);border-radius:14px;padding:14px">' +
+      '<label for="inWkRuns" style="color:#FFCF7A">Runs completed before the run out</label>' +
+      '<input type="number" id="inWkRuns" value="0" min="0" max="6" inputmode="numeric" style="font-size:24px;font-weight:800;text-align:center;min-height:56px">' +
+      '<div class="small" style="margin-top:10px;color:#FFCF7A;line-height:1.6">' +
         'These runs are credited to the <b>striker</b> and added to the team total. ' +
         'Example: batters completed 1 run and were going for the 2nd → enter <b>1</b>. ' +
         'Run out going for the 1st run → enter <b>0</b>.' +
@@ -2152,7 +2483,7 @@ function openWicketModal(preselect) {
           : '<option value="">— no batters left —</option>') +
       '</select></div>' +
 
-    '<p class="small" id="wkErr" style="color:#ff9d9d"></p>';
+    '<p class="small" id="wkErr" style="color:#FFA3A3"></p>';
 
   function submitWicket() {
     const type = $('#selWkType').value;
@@ -2314,7 +2645,7 @@ function openRetireModal() {
         (m.rules.retiredHurtEnabled ? '<button class="seg-btn active" data-rett="retired hurt" id="retHurt">Retired Hurt</button>' : '') +
         (m.rules.allowRetiredOut ? '<button class="seg-btn' + (!m.rules.retiredHurtEnabled ? ' active' : '') + '" data-rett="retired out" id="retOut">Retired Out</button>' : '') +
       '</div></div>' +
-      '<p class="small" id="retErr" style="color:#ff9d9d"></p>',
+      '<p class="small" id="retErr" style="color:#FFA3A3"></p>',
     actions: [
       { label: 'Cancel', cls: 'btn-ghost', onClick: closeModal },
       { label: 'Retire', cls: 'btn-warn', onClick: doRetire }
@@ -2414,7 +2745,7 @@ function editDeliveryModal(index) {
   openModal({
     title: 'Edit delivery #' + (index + 1),
     body:
-      '<p class="small" style="margin-bottom:12px">' +
+      '<p class="small" style="margin-bottom:14px">' +
         'Over ' + Math.floor(index / 6) + '.' + ((index % 6) + 1) + ' · ' +
         esc(info.label) + '</p>' +
       '<div class="form-row"><label>Runs off the bat</label>' +
@@ -2449,7 +2780,7 @@ function openBallHistory() {
   const rows = inn.events.map((e, i) => {
     const info = ballLabelInfo(e);
     const overNo = Math.floor(i / 6);
-    return '<div class="list" style="display:flex;align-items:center;gap:8px;margin-bottom:6px">' +
+    return '<div class="list" style="display:flex;align-items:center;gap:10px;margin-bottom:7px;padding:8px 10px">' +
       '<span class="ball small ' + info.cls + '">' + esc(info.label) + '</span>' +
       '<span class="small grow">#' + (i + 1) + ' · Over ' + (overNo + 1) + '</span>' +
       '<button class="btn btn-xs btn-ghost" data-editball="' + i + '">Edit</button>' +
@@ -2458,7 +2789,7 @@ function openBallHistory() {
 
   openModal({
     title: 'Ball history — Innings ' + (m.currentInnings + 1),
-    body: '<div style="max-height:58vh;overflow-y:auto">' + rows + '</div>',
+    body: '<div style="max-height:58vh;overflow-y:auto;overscroll-behavior:contain">' + rows + '</div>',
     actions: [{ label: 'Close', cls: 'btn-primary', onClick: closeModal }],
     onMount: () => {
       $$('[data-editball]').forEach(b => b.addEventListener('click', () => {
@@ -2496,37 +2827,44 @@ function renderInningsBreak() {
 
   showScreen('live');
   $('#liveScoreboard').innerHTML =
-    '<div class="sb-top"><div><div class="sb-team">' + esc(batTeam) + '</div>' +
-    '<div class="sb-vs">Innings 1 complete</div></div>' +
-    '<span class="sb-badge orange">BREAK</span></div>' +
-    '<div class="sb-score">' + E.runs + '<span class="wk">/' + E.wickets + '</span></div>' +
-    '<div class="sb-overs">' + oversStr(E.legalBalls) + ' overs</div>';
+    '<div class="sb-top">' +
+      '<div class="sb-team-wrap"><span class="sb-team">' + esc(batTeam) + '</span>' +
+      '<span class="sb-vs">Innings 1 complete</span></div>' +
+      '<span class="sb-badge" style="background:rgba(245,165,36,.18);color:#FFCF7A;border-color:rgba(245,165,36,.45)">BREAK</span>' +
+    '</div>' +
+    '<div class="sb-mid">' +
+      '<div class="sb-score">' + E.runs + '<span class="sb-wk">/' + E.wickets + '</span></div>' +
+      '<div class="sb-right"><div class="sb-overs"><b>' + oversStr(E.legalBalls) + '</b><span> ov</span></div></div>' +
+    '</div>';
 
   const topScorer = E.order.map(id => E.batters[id]).sort((a, b) => b.runs - a.runs)[0];
   const topBowler = E.bowlerOrder.map(id => E.bowlers[id]).sort((a, b) => b.wickets - a.wickets || a.runs - b.runs)[0];
 
   $('#liveSetupWarning').innerHTML = '';
-  $('#battingCard').innerHTML =
-    '<div class="card-title"><h2>Innings Break</h2></div>' +
-    '<div style="font-size:15px;line-height:1.9">' +
-      '<div><b>' + esc(batTeam) + '</b> ' + E.runs + '/' + E.wickets + ' (' + oversStr(E.legalBalls) + ' ov)</div>' +
-      '<div class="small">Extras: ' + E.extras.total + ' (wd ' + E.extras.wide + ', nb ' + E.extras.noball + ', b ' + E.extras.bye + ', lb ' + E.extras.legbye + ', ot ' + E.extras.overthrow + ')</div>' +
-      (topScorer ? '<div class="small">Top scorer: ' + esc(topScorer.name) + ' ' + topScorer.runs + ' (' + topScorer.balls + 'b)</div>' : '') +
-      (topBowler ? '<div class="small">Best bowling: ' + esc(topBowler.name) + ' ' + topBowler.wickets + '/' + topBowler.runs + '</div>' : '') +
-    '</div>' +
-    '<div class="divider"></div>' +
-    '<div style="font-size:17px;font-weight:800;color:#7ff0a6">Target: ' + target + '</div>' +
-    '<div class="small">' + esc(bowlTeam) + ' need ' + target + ' runs to win</div>';
-
-  $('#bowlingCard').innerHTML = '';
   $('#overCard').innerHTML = '';
-  $('#scoringCard').innerHTML =
-    '<div class="row"><button class="btn btn-ghost grow" id="btnBreakScorecard">📊 View Scorecard</button>' +
-    '<button class="btn btn-ghost grow" id="btnBreakPDF">⬇ Innings PDF</button></div>' +
-    '<button class="btn btn-primary btn-block" id="btnStart2nd" style="margin-top:10px">▶ Start Second Innings</button>';
-
+  $('#bowlingCard').innerHTML = '';
   $('#liveControls').innerHTML =
     '<div class="row"><button class="btn btn-sm btn-ghost grow" id="btnBreakHome">🏠 Home</button></div>';
+
+  $('#battingCard').innerHTML =
+    '<div class="break-hero card" style="margin-bottom:0;border-radius:var(--r-lg)">' +
+      '<div class="card-title" style="margin-bottom:8px"><h2>Innings Break</h2><span class="pill green">Done</span></div>' +
+      '<div style="font-size:15px;line-height:1.9">' +
+        '<div style="font-weight:800">' + esc(batTeam) + ' <span style="font-size:19px;color:#fff">' + E.runs + '/' + E.wickets + '</span> <span class="muted" style="font-weight:600;font-size:12px">(' + oversStr(E.legalBalls) + ' ov)</span></div>' +
+        '<div class="small">Extras: ' + E.extras.total + ' (wd ' + E.extras.wide + ', nb ' + E.extras.noball + ', b ' + E.extras.bye + ', lb ' + E.extras.legbye + ', ot ' + E.extras.overthrow + ')</div>' +
+        (topScorer ? '<div class="small">Top scorer: <b style="color:#fff">' + esc(topScorer.name) + '</b> ' + topScorer.runs + ' (' + topScorer.balls + 'b)</div>' : '') +
+        (topBowler ? '<div class="small">Best bowling: <b style="color:#fff">' + esc(topBowler.name) + '</b> ' + topBowler.wickets + '/' + topBowler.runs + '</div>' : '') +
+      '</div>' +
+      '<div class="divider"></div>' +
+      '<div style="font-size:10.5px;letter-spacing:1.6px;text-transform:uppercase;color:#FFCF7A;font-weight:900">Target</div>' +
+      '<div class="break-target">' + target + '</div>' +
+      '<div class="small">' + esc(bowlTeam) + ' need ' + target + ' runs to win</div>' +
+    '</div>';
+
+  $('#scoringCard').innerHTML =
+    '<div class="row"><button class="btn btn-ghost grow" id="btnBreakScorecard">📊 Scorecard</button>' +
+    '<button class="btn btn-ghost grow" id="btnBreakPDF">⬇ PDF</button></div>' +
+    '<button class="btn btn-primary btn-lg btn-block" id="btnStart2nd" style="margin-top:12px">▶ Start Second Innings</button>';
 
   const b1 = document.getElementById('btnBreakScorecard');
   if (b1) b1.addEventListener('click', () => { renderScorecard(0); showScreen('scorecard'); });
@@ -2557,20 +2895,20 @@ function renderScorecard(idx) {
 
   // Innings switcher
   if (m.innings.length > 1) {
-    html += '<div class="chip-row" style="margin-bottom:12px">' +
+    html += '<div class="chip-row" style="margin-bottom:14px">' +
       m.innings.map((x, i) =>
         '<button class="chip' + (i === scorecardInnings ? ' active' : '') + '" data-scinn="' + i + '">Innings ' + (i + 1) + '</button>'
       ).join('') + '</div>';
   }
 
   html += '<div class="card">' +
-    '<div class="card-title"><h2>' + esc(batTeam.name) + '</h2>' +
-      '<span class="pill green">' + E.runs + '/' + E.wickets + '</span></div>' +
+    '<div class="card-title" style="margin-bottom:6px"><h2 style="font-size:16px">' + esc(batTeam.name) + '</h2>' +
+      '<span class="pill green" style="font-size:13px;padding:4px 12px">' + E.runs + '/' + E.wickets + '</span></div>' +
     '<div class="small">' + oversStr(E.legalBalls) + ' overs · vs ' + esc(bowlTeam.name) + '</div>' +
   '</div>';
 
   // Batting table
-  html += '<div class="card"><h3>Batting</h3><div class="tbl-scroll"><table>' +
+  html += '<div class="card"><h3 style="margin-bottom:10px">Batting</h3><div class="tbl-scroll"><table>' +
     '<thead><tr><th>Batter</th><th class="num">R</th><th class="num">B</th><th class="num">4s</th><th class="num">6s</th><th class="num">SR</th></tr></thead><tbody>';
 
   if (!E.order.length) {
@@ -2587,7 +2925,7 @@ function renderScorecard(idx) {
       if (b.isRetired && !b.out) howOut = 'retired hurt';
       html += '<tr>' +
         '<td><span class="bat-name">' + esc(b.name) + '</span><span class="bat-sub out-text">' + esc(howOut) + '</span></td>' +
-        '<td class="num" style="font-weight:800">' + b.runs + '</td>' +
+        '<td class="num" style="font-weight:800;color:#fff">' + b.runs + '</td>' +
         '<td class="num">' + b.balls + '</td>' +
         '<td class="num">' + b.fours + '</td>' +
         '<td class="num">' + b.sixes + '</td>' +
@@ -2597,15 +2935,15 @@ function renderScorecard(idx) {
   }
   html += '</tbody></table></div>' +
     '<div class="divider"></div>' +
-    '<div class="row between small"><span>Extras</span><b>' + E.extras.total + '</b></div>' +
-    '<div class="small" style="padding-left:8px">wd ' + E.extras.wide + ' · nb ' + E.extras.noball + ' · b ' + E.extras.bye + ' · lb ' + E.extras.legbye + ' · ot ' + E.extras.overthrow + '</div>' +
-    '<div class="row between" style="margin-top:8px"><b>Total</b><b>' + E.runs + '/' + E.wickets + ' (' + oversStr(E.legalBalls) + ' ov)</b></div>' +
+    '<div class="row between small"><span>Extras</span><b style="color:#fff">' + E.extras.total + '</b></div>' +
+    '<div class="small" style="padding-left:2px;margin-top:2px">wd ' + E.extras.wide + ' · nb ' + E.extras.noball + ' · b ' + E.extras.bye + ' · lb ' + E.extras.legbye + ' · ot ' + E.extras.overthrow + '</div>' +
+    '<div class="row between" style="margin-top:10px;font-size:14px"><b>Total</b><b style="color:var(--lime)">' + E.runs + '/' + E.wickets + ' (' + oversStr(E.legalBalls) + ' ov)</b></div>' +
     '<div class="small" style="margin-top:6px">Run rate: ' + f2(E.legalBalls > 0 ? E.runs / (E.legalBalls / 6) : 0) +
       ' · Boundaries: ' + E.boundaries.fours + ' fours, ' + E.boundaries.sixes + ' sixes</div>' +
   '</div>';
 
   // Bowling table
-  html += '<div class="card"><h3>Bowling — ' + esc(bowlTeam.name) + '</h3><div class="tbl-scroll"><table>' +
+  html += '<div class="card"><h3 style="margin-bottom:10px">Bowling — ' + esc(bowlTeam.name) + '</h3><div class="tbl-scroll"><table>' +
     '<thead><tr><th>Bowler</th><th class="num">O</th><th class="num">M</th><th class="num">R</th><th class="num">W</th><th class="num">Econ</th></tr></thead><tbody>';
   if (!E.bowlerOrder.length) {
     html += '<tr><td colspan="6" class="muted">No bowling data</td></tr>';
@@ -2618,7 +2956,7 @@ function renderScorecard(idx) {
         '<td class="num">' + oversStr(b.balls) + '</td>' +
         '<td class="num">' + b.maidens + '</td>' +
         '<td class="num">' + b.runs + '</td>' +
-        '<td class="num" style="font-weight:800">' + b.wickets + '</td>' +
+        '<td class="num" style="font-weight:800;color:#fff">' + b.wickets + '</td>' +
         '<td class="num">' + f2(econ(b.runs, b.balls)) + '</td>' +
       '</tr>';
     });
@@ -2626,16 +2964,16 @@ function renderScorecard(idx) {
   html += '</tbody></table></div></div>';
 
   // Fall of wickets
-  html += '<div class="card"><h3>Fall of Wickets</h3>';
+  html += '<div class="card"><h3 style="margin-bottom:10px">Fall of Wickets</h3>';
   if (!E.fow.length) html += '<div class="small muted">No wickets fell.</div>';
   else html += '<div class="over-balls">' + E.fow.map(f =>
     '<span class="ball small wicket" title="' + esc(f.batter) + '">' + f.wickets + '-' + f.runs + '</span>'
   ).join('') + '</div>' +
-  '<div class="small" style="margin-top:8px">' + E.fow.map(f => esc(f.batter) + ' ' + f.runs + '-' + f.wickets + ' (' + f.over + ')').join(' · ') + '</div>';
+  '<div class="small" style="margin-top:10px;line-height:1.7">' + E.fow.map(f => esc(f.batter) + ' ' + f.runs + '-' + f.wickets + ' (' + f.over + ')').join(' · ') + '</div>';
   html += '</div>';
 
   // Over-by-over
-  html += '<div class="card"><h3>Over by Over</h3>';
+  html += '<div class="card"><h3 style="margin-bottom:10px">Over by Over</h3>';
   if (!E.overs.length) html += '<div class="small muted">No completed overs.</div>';
   else {
     html += '<div class="over-balls">' + E.overs.map(o => {
@@ -2669,23 +3007,21 @@ function renderSummary() {
   let html = '';
 
   // Result hero
-  html += '<div class="card" style="border-color:#22c55e;background:linear-gradient(180deg,#173a28,#122a1e)">' +
-    '<div class="center">' +
-      '<div style="font-size:12px;letter-spacing:1px;text-transform:uppercase;color:#8fe3ae;font-weight:700">Result</div>' +
-      '<div style="font-size:22px;font-weight:900;margin:6px 0 10px">' + esc(res.text) + '</div>' +
-      '<div class="row" style="justify-content:center;gap:16px;font-size:14px">' +
-        (i1 && E1 ? '<div><div class="small">' + esc(teamName(m, i1.battingTeamId)) + '</div><b style="font-size:17px">' + E1.runs + '/' + E1.wickets + '</b><div class="small">' + oversStr(E1.legalBalls) + ' ov</div></div>' : '') +
-        (i2 && E2 ? '<div><div class="small">' + esc(teamName(m, i2.battingTeamId)) + '</div><b style="font-size:17px">' + E2.runs + '/' + E2.wickets + '</b><div class="small">' + oversStr(E2.legalBalls) + ' ov</div></div>' : '') +
-      '</div>' +
+  html += '<div class="card result-hero">' +
+    '<div class="result-kicker">Result</div>' +
+    '<div class="result-text">' + esc(res.text) + '</div>' +
+    '<div class="result-scores">' +
+      (i1 && E1 ? '<div class="rs"><div class="rs-team">' + esc(teamName(m, i1.battingTeamId)) + '</div><div class="rs-val">' + E1.runs + '/' + E1.wickets + '</div><div class="rs-ov">' + oversStr(E1.legalBalls) + ' ov</div></div>' : '') +
+      (i2 && E2 ? '<div class="rs"><div class="rs-team">' + esc(teamName(m, i2.battingTeamId)) + '</div><div class="rs-val">' + E2.runs + '/' + E2.wickets + '</div><div class="rs-ov">' + oversStr(E2.legalBalls) + ' ov</div></div>' : '') +
     '</div>' +
   '</div>';
 
   // Match info
-  html += '<div class="card"><h3>Match Info</h3><div style="font-size:13.5px;line-height:1.9">' +
-    '<div><b>' + esc(m.name || (teamName(m, 'A') + ' vs ' + teamName(m, 'B'))) + '</b></div>' +
+  html += '<div class="card"><h3 style="margin-bottom:10px">Match Info</h3><div style="font-size:13.5px;line-height:1.9">' +
+    '<div style="font-weight:800;font-size:15px">' + esc(m.name || (teamName(m, 'A') + ' vs ' + teamName(m, 'B'))) + '</div>' +
     '<div class="small">' + esc(fmtDate(m.date)) + (m.venue ? ' · ' + esc(m.venue) : '') + ' · ' + m.overs + ' overs</div>' +
     (m.toss && m.toss.winnerTeamId ? '<div class="small">Toss: ' + esc(teamName(m, m.toss.winnerTeamId)) + ' won and chose to ' + (m.toss.decision === 'bat' ? 'bat' : 'bowl') + '</div>' : '') +
-    (m.notes ? '<div class="small" style="margin-top:6px">' + esc(m.notes) + '</div>' : '') +
+    (m.notes ? '<div class="small" style="margin-top:8px;line-height:1.6">' + esc(m.notes) + '</div>' : '') +
   '</div></div>';
 
   // Awards
@@ -2706,16 +3042,16 @@ function renderSummary() {
   const pomId = m.playerOfMatch || m.suggestedPOM;
   const pomPlayer = pomId ? playerById(m, pomId) : null;
 
-  html += '<div class="card"><h3>Awards</h3><div style="font-size:13.5px;line-height:2">' +
+  html += '<div class="card"><h3 style="margin-bottom:10px">Awards</h3><div style="font-size:13.5px;line-height:2.1">' +
     (topRun ? '<div>🏏 <b>Most Runs:</b> ' + esc(topRun.b.name) + ' — ' + topRun.b.runs + ' runs</div>' : '') +
     (topWkt ? '<div>🎯 <b>Most Wickets:</b> ' + esc(topWkt.b.name) + ' — ' + topWkt.b.wickets + ' wkts</div>' : '') +
     (bestSR ? '<div>⚡ <b>Best Strike Rate:</b> ' + esc(bestSR.b.name) + ' — ' + f2(sr(bestSR.b.runs, bestSR.b.balls)) + '</div>' : '') +
     (bestBowlFig ? '<div>🔥 <b>Best Bowling:</b> ' + esc(bestBowlFig.b.name) + ' — ' + bestBowlFig.b.wickets + '/' + bestBowlFig.b.runs + '</div>' : '') +
   '</div>' +
   '<div class="divider"></div>' +
-  '<div class="row between"><span style="font-weight:700">⭐ Player of the Match</span>' +
-    '<span class="pill green">' + (pomPlayer ? esc(pomPlayer.name) : '—') + '</span></div>' +
-  '<button class="btn btn-sm btn-ghost btn-block" id="btnChoosePOM" style="margin-top:8px">Choose manually</button>' +
+  '<div class="row between"><span style="font-weight:700;font-size:13.5px">⭐ Player of the Match</span>' +
+    '<span class="pill green" style="font-size:12px;padding:5px 12px">' + (pomPlayer ? esc(pomPlayer.name) : '—') + '</span></div>' +
+  '<button class="btn btn-sm btn-ghost btn-block" id="btnChoosePOM" style="margin-top:10px">Choose manually</button>' +
   '</div>';
 
   // Full scorecards
@@ -2723,40 +3059,40 @@ function renderSummary() {
     const inn = m.innings[idx];
     if (!inn) return;
     const E = computeInnings(inn, m);
-    html += '<div class="card"><h3>Innings ' + (idx + 1) + ' — ' + esc(teamName(m, inn.battingTeamId)) + ' ' +
+    html += '<div class="card"><h3 style="margin-bottom:10px">Innings ' + (idx + 1) + ' — ' + esc(teamName(m, inn.battingTeamId)) + ' ' +
       E.runs + '/' + E.wickets + ' (' + oversStr(E.legalBalls) + ' ov)</h3>' +
       '<div class="tbl-scroll"><table><thead><tr><th>Batter</th><th class="num">R</th><th class="num">B</th><th class="num">4s</th><th class="num">6s</th><th class="num">SR</th></tr></thead><tbody>' +
       E.order.map(pid => {
         const b = E.batters[pid];
         let how = b.howOut || 'not out';
         return '<tr><td><span class="bat-name">' + esc(b.name) + '</span><span class="bat-sub out-text">' + esc(how) + '</span></td>' +
-          '<td class="num" style="font-weight:800">' + b.runs + '</td><td class="num">' + b.balls + '</td>' +
+          '<td class="num" style="font-weight:800;color:#fff">' + b.runs + '</td><td class="num">' + b.balls + '</td>' +
           '<td class="num">' + b.fours + '</td><td class="num">' + b.sixes + '</td><td class="num">' + f2(sr(b.runs, b.balls)) + '</td></tr>';
       }).join('') +
       '</tbody></table></div>' +
-      '<div class="small" style="margin-top:8px">Extras ' + E.extras.total + ' (wd ' + E.extras.wide + ', nb ' + E.extras.noball + ', b ' + E.extras.bye + ', lb ' + E.extras.legbye + ', ot ' + E.extras.overthrow + ')</div>' +
+      '<div class="small" style="margin-top:10px">Extras ' + E.extras.total + ' (wd ' + E.extras.wide + ', nb ' + E.extras.noball + ', b ' + E.extras.bye + ', lb ' + E.extras.legbye + ', ot ' + E.extras.overthrow + ')</div>' +
       '<div class="divider"></div>' +
       '<div class="tbl-scroll"><table><thead><tr><th>Bowler</th><th class="num">O</th><th class="num">M</th><th class="num">R</th><th class="num">W</th><th class="num">Econ</th></tr></thead><tbody>' +
       E.bowlerOrder.map(pid => {
         const b = E.bowlers[pid];
         return '<tr><td>' + esc(b.name) + '</td><td class="num">' + oversStr(b.balls) + '</td><td class="num">' + b.maidens +
-          '</td><td class="num">' + b.runs + '</td><td class="num" style="font-weight:800">' + b.wickets + '</td><td class="num">' + f2(econ(b.runs, b.balls)) + '</td></tr>';
+          '</td><td class="num">' + b.runs + '</td><td class="num" style="font-weight:800;color:#fff">' + b.wickets + '</td><td class="num">' + f2(econ(b.runs, b.balls)) + '</td></tr>';
       }).join('') +
       '</tbody></table></div></div>';
   });
 
   // Actions
   html += '<div class="card">' +
-    '<button class="btn btn-primary btn-block" id="btnFinalPDF" style="margin-bottom:8px">⬇ Download PDF Report</button>' +
+    '<button class="btn btn-primary btn-block" id="btnFinalPDF" style="margin-bottom:9px">⬇ Download PDF Report</button>' +
     '<div class="row">' +
       '<button class="btn btn-ghost grow" id="btnViewSc1">Innings 1</button>' +
       '<button class="btn btn-ghost grow" id="btnViewSc2">Innings 2</button>' +
     '</div>' +
-    '<div class="row" style="margin-top:8px">' +
+    '<div class="row" style="margin-top:9px">' +
       '<button class="btn btn-ghost grow" id="btnSuperOver">Super Over</button>' +
       '<button class="btn btn-ghost grow" id="btnBackHomeFromSummary">Home</button>' +
     '</div>' +
-    '<button class="btn btn-danger btn-block" id="btnDeleteThisMatch" style="margin-top:8px">Delete Match</button>' +
+    '<button class="btn btn-danger btn-block" id="btnDeleteThisMatch" style="margin-top:9px">Delete Match</button>' +
   '</div>';
 
   $('#summaryBody').innerHTML = html;
@@ -3100,7 +3436,7 @@ function init() {
   });
   renderHome();
 
-  // View all history (new — reaches the previously unreachable history screen)
+  // View all history
   $('#btnViewAllHistory').addEventListener('click', () => {
     renderHistory();
     showScreen('history');
@@ -3187,7 +3523,7 @@ function init() {
       const m = currentMatch;
       // 50/50 toss winner between the two teams
       const winTeam = Math.random() < 0.5 ? 'A' : 'B';
-      $('#tossResultText').innerHTML = 'Result: <b>' + result.toUpperCase() + '</b> — ' + winner +
+      $('#tossResultText').innerHTML = 'Result: <b style="color:#fff">' + result.toUpperCase() + '</b> — ' + winner +
         '<br>' + esc(teamName(m, winTeam)) + ' wins the toss.';
       $('#selTossWinner').value = winTeam;
       const dec = $$('[data-decision]').find(b => b.classList.contains('active'));
@@ -3288,4 +3624,4 @@ else init();
 })();
 </script>
 </body>
-  </html>
+</html>
